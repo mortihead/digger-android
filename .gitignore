@@ -32,9 +32,12 @@ local.properties
 # Instrumentation / profiler captures
 captures/
 
-# Signing keys — never commit real release keystores
+# Signing keys — never commit real (Play Store) release keystores.
+# Исключение: app/keystore/release.jks — это намеренно закоммиченный общий
+# "коммьюнити" ключ для сборок из GitHub Releases, не для публикации в Play.
 *.jks
 *.keystore
+!app/keystore/release.jks
 
 # macOS
 .DS_Store

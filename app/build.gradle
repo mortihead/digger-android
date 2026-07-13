@@ -16,14 +16,32 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        release {
+            // Продакшн-ключа для публикации в Google Play пока нет — это
+            // общий "коммьюнити" ключ, закоммиченный прямо в репозиторий
+            // (см. app/keystore/release.jks), намеренно не секретный.
+            //
+            // Важно: подписывать релиз debug-ключом (signingConfigs.debug)
+            // нельзя — на каждой свежей машине/раннере GitHub Actions AGP
+            // генерирует СВОЙ debug.keystore со случайным ключом, поэтому
+            // релизы, собранные в разных запусках CI, оказывались бы
+            // подписаны разными ключами и ставились бы поверх друг друга
+            // с ошибкой "Приложение не установлено" (конфликт подписи).
+            // Один и тот же файл ключа гарантирует, что все релизные сборки
+            // (локальные и из CI) всегда взаимно совместимы по обновлению.
+            storeFile file('keystore/release.jks')
+            storePassword 'digger-android-release'
+            keyAlias 'digger-android-release'
+            keyPassword 'digger-android-release'
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // Продакшн-ключа для публикации пока нет, а релизные сборки в CI
-            // должны быть сразу пригодны для install/sideloading — подписываем
-            // тем же отладочным ключом, что и debug-сборки.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
         }
     }
     compileOptions {

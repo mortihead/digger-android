@@ -31,14 +31,21 @@ jobs:
       - name: Build release APK
         run: ./gradlew assembleRelease
 
+      - name: Rename APK to include release tag
+        id: apk
+        run: |
+          name="digger-android-${GITHUB_REF_NAME}.apk"
+          mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/$name"
+          echo "path=app/build/outputs/apk/release/$name" >> "$GITHUB_OUTPUT"
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: digger-android-release
-          path: app/build/outputs/apk/release/*.apk
+          name: digger-android-${{ github.ref_name }}
+          path: ${{ steps.apk.outputs.path }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/*.apk
+          files: ${{ steps.apk.outputs.path }}
           generate_release_notes: true
