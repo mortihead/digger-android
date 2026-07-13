@@ -1,0 +1,39 @@
+plugins {
+    alias(libs.plugins.android.application)
+}
+
+android {
+    namespace 'org.digger.android'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "org.digger.android"
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Продакшн-ключа для публикации пока нет, а релизные сборки в CI
+            // должны быть сразу пригодны для install/sideloading — подписываем
+            // тем же отладочным ключом, что и debug-сборки.
+            signingConfig signingConfigs.debug
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    testImplementation libs.junit
+    androidTestImplementation libs.androidx.junit
+    androidTestImplementation libs.androidx.espresso.core
+}
