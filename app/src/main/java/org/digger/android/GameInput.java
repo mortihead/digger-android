@@ -17,6 +17,7 @@ final class GameInput {
     private boolean fire;
     private boolean pauseRequested;
     private boolean startRequested;
+    private boolean muteToggleRequested;
 
     synchronized void setDirection(Direction direction) {
         this.direction = direction;
@@ -41,6 +42,16 @@ final class GameInput {
     synchronized boolean consumePauseRequest() {
         boolean requested = pauseRequested;
         pauseRequested = false;
+        return requested;
+    }
+
+    synchronized void requestMuteToggle() {
+        muteToggleRequested = true;
+    }
+
+    synchronized boolean consumeMuteToggleRequest() {
+        boolean requested = muteToggleRequested;
+        muteToggleRequested = false;
         return requested;
     }
 

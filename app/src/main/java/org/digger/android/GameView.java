@@ -75,6 +75,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     private final Bitmap frameBuffer = Bitmap.createBitmap(CgaScreen.WIDTH, CgaScreen.HEIGHT, Bitmap.Config.ARGB_8888);
     private final Rect destination = new Rect();
 
+    private final SoundPreferences soundPreferences;
+    private final AudioDriver audioDriver;
+
     private LevelField levelField;
     private EmeraldField emeraldField;
     private GoldBags goldBags;
@@ -85,6 +88,11 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
 
     private Mode mode = Mode.TITLE;
     private int gameOverTimer;
+    private int emeraldScaleStep;
+    private boolean levelCompleteAnnounced;
+    private boolean[] wasBagWobbling = new boolean[0];
+    private boolean[] wasBagFalling = new boolean[0];
+    private boolean[] wasBagBroken = new boolean[0];
 
     /**
      * Для каждого из 4 направлений по отдельности: момент последнего
@@ -130,6 +138,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         paint.setAntiAlias(false);
         setFocusable(true);
         setFocusableInTouchMode(true);
+        soundPreferences = new SoundPreferences(context);
+        audioDriver = new AndroidAudioDriver(context);
+        audioDriver.setMuted(soundPreferences.isMuted());
     }
 
     @Override
@@ -328,9 +339,23 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         running = true;
         renderThread = new Thread(this, "DiggerRenderThread");
         renderThread.start();
+        // Android-уровневая пауза (сворачивание приложения) останавливает
+        // фоновую музыку через stopAll() в pause(), но не помнит, что её
+        // нужно возобновить — делаем это явно здесь, а не полагаемся на
+        // SoundPool.autoResume() (см. AndroidAudioDriver.stopAll()).
+        if (mode == Mode.PLAYING && session != null && !paused && session.isDiggerActive()) {
+            audioDriver.playBackgroundMusic();
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        audioDriver.release();
     }
 
     public void pause() {
+        audioDriver.stopAll();
         running = false;
         if (renderThread == null) {
             return;
@@ -394,40 +419,115 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         session = new GameSession();
         paused = false;
         gameOverTimer = 0;
+        emeraldScaleStep = 0;
+        levelCompleteAnnounced = false;
+        int bagCount = goldBags.all().size();
+        wasBagWobbling = new boolean[bagCount];
+        wasBagFalling = new boolean[bagCount];
+        wasBagBroken = new boolean[bagCount];
         gameInput.consumePauseRequest();
         mode = Mode.PLAYING;
+        audioDriver.playBackgroundMusic();
     }
 
     private void drawGameplayFrame() {
+        if (gameInput.consumeMuteToggleRequest()) {
+            boolean newMuted = !audioDriver.isMuted();
+            audioDriver.setMuted(newMuted);
+            soundPreferences.setMuted(newMuted);
+        }
         if (gameInput.consumePauseRequest()) {
             paused = !paused;
+            if (paused) {
+                audioDriver.stopAll();
+            } else if (session.isDiggerActive()) {
+                audioDriver.playBackgroundMusic();
+            }
         }
         if (!paused && !session.isGameOver() && !session.isLevelComplete()) {
             // Во время сцены "R.I.P." мир замирает целиком (мешки, монстры,
             // Digger) — единственное, что движется, это таймер паузы внутри
             // session.update(), который по истечении вернет всех на старт.
             if (session.isDiggerActive()) {
+                for (int i = 0; i < wasBagWobbling.length; i++) {
+                    GoldBag bag = goldBags.all().get(i);
+                    wasBagWobbling[i] = bag.isWobbling();
+                    wasBagFalling[i] = bag.isFalling();
+                    wasBagBroken[i] = bag.isBroken();
+                }
                 goldBags.update(levelField, digger.getX(), digger.getY());
                 monsters.update(levelField, goldBags, digger.getX(), digger.getY());
+                for (int i = 0; i < wasBagWobbling.length; i++) {
+                    GoldBag bag = goldBags.all().get(i);
+                    if (!wasBagWobbling[i] && bag.isWobbling()) {
+                        audioDriver.playBagWobble();
+                    }
+                    if (!wasBagFalling[i] && bag.isFalling()) {
+                        audioDriver.playBagFall();
+                    }
+                    if (!wasBagBroken[i] && bag.isBroken()) {
+                        audioDriver.playBagBreak();
+                    }
+                }
 
                 int goldBefore = goldBags.collectedCount();
                 boolean emeraldCollected = digger.update(gameInput, levelField, emeraldField, goldBags);
                 if (emeraldCollected) {
                     session.getScore().addEmerald();
+                    audioDriver.playEmeraldPickup();
+                    audioDriver.playEmeraldScale(emeraldScaleStep);
+                    emeraldScaleStep = (emeraldScaleStep + 1) % 7;
                 }
                 int goldCollectedThisFrame = goldBags.collectedCount() - goldBefore;
                 for (int i = 0; i < goldCollectedThisFrame; i++) {
                     session.getScore().addGold();
+                    audioDriver.playGoldCollect();
                 }
 
                 if (gameInput.isFire() && fire.canFire()) {
                     fire.start(digger.getX(), digger.getY(), digger.getFacing());
+                    audioDriver.playFire();
                 }
                 int monstersBeforeFire = monsters.all().size();
+                boolean wasExploding = fire.isExploding();
                 fire.update(levelField, monsters, goldBags);
+                if (!wasExploding && fire.isExploding()) {
+                    audioDriver.playExplode();
+                }
                 session.getScore().addMonsterKills(monstersBeforeFire - monsters.all().size());
             }
+            boolean wasShowingDeathScene = session.isShowingDeathScene();
+            int livesBefore = session.getLives();
             session.update(digger, monsters, goldBags, emeraldField, fire);
+            if (!wasShowingDeathScene && session.isShowingDeathScene()) {
+                // Оригинал никогда не играет фоновую музыку одновременно с
+                // похоронным маршем — они на одном канале (Timer0), взаимно
+                // исключают друг друга. Останавливаем цикл ДО звука смерти.
+                audioDriver.stopBackgroundMusic();
+                audioDriver.playDiggerDeath();
+            }
+            if (wasShowingDeathScene && !session.isShowingDeathScene()) {
+                // Оригинал явно глушит похоронный марш (sound.musicOff())
+                // сразу по окончании анимации надгробия, а не ждёт, пока
+                // мелодия доиграет сама — RESPAWN_DELAY (сцена "R.I.P.")
+                // короче, чем наш сэмпл dirge, поэтому без этого обрыва
+                // марш продолжал звучать поверх уже возобновившейся игры.
+                audioDriver.stopAll();
+                if (session.isDiggerActive()) {
+                    // Возрождение (не game over) — оригинал заново запускает
+                    // фоновую музыку с начала для каждой новой попытки
+                    // (Main.play() вызывает music(1) в начале каждой партии).
+                    audioDriver.playBackgroundMusic();
+                }
+            }
+            if (session.getLives() > livesBefore) {
+                audioDriver.playExtraLife();
+            }
+            if (session.isLevelComplete() && !levelCompleteAnnounced) {
+                audioDriver.stopBackgroundMusic();
+                audioDriver.playLevelComplete();
+                levelCompleteAnnounced = true;
+            }
         }
 
         if (session.isGameOver()) {
@@ -493,7 +593,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
             canvas.drawColor(Color.BLACK);
             canvas.drawBitmap(frameBuffer, null, destination, paint);
             if (mode == Mode.PLAYING) {
-                touchControls.draw(canvas, getWidth(), getHeight(), destination);
+                touchControls.draw(canvas, getWidth(), getHeight(), destination, audioDriver.isMuted());
             }
         } finally {
             surfaceHolder.unlockCanvasAndPost(canvas);

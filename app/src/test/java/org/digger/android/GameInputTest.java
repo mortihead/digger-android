@@ -37,4 +37,16 @@ public class GameInputTest {
         assertTrue("Первое чтение после нажатия паузы должно вернуть true.", input.consumePauseRequest());
         assertFalse("Повторное чтение без нового нажатия должно вернуть false.", input.consumePauseRequest());
     }
+
+    @Test
+    public void muteToggleRequestFiresOnlyOncePerPress() {
+        GameInput input = new GameInput();
+
+        input.requestMuteToggle();
+
+        assertTrue("Первое чтение после нажатия кнопки звука должно вернуть true.",
+                input.consumeMuteToggleRequest());
+        assertFalse("Повторное чтение без нового нажатия должно вернуть false.",
+                input.consumeMuteToggleRequest());
+    }
 }

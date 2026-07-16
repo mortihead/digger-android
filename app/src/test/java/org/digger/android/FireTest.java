@@ -60,6 +60,34 @@ public class FireTest {
     }
 
     @Test
+    public void isExplodingBecomesTrueExactlyOnTheExplosionFrameAndStaysUntilRecharge() {
+        LevelField field = new LevelField(fullLayout('H'));
+        Monsters monsters = new Monsters();
+        GoldBags bags = new GoldBags(fullLayout('S'));
+        Fire fire = new Fire();
+        int startX = LevelField.FIELD_LEFT + 5 * LevelField.CELL_WIDTH;
+        int startY = LevelField.FIELD_TOP + 3 * LevelField.CELL_HEIGHT;
+        fire.start(startX, startY, Direction.DOWN);
+
+        assertFalse("Пока снаряд летит, isExploding() должен быть false.", fire.isExploding());
+
+        boolean exploded = false;
+        for (int i = 0; i < 30 && !exploded; i++) {
+            fire.update(field, monsters, bags);
+            exploded = fire.isExploding();
+        }
+        assertTrue("Снаряд должен был взорваться о непрокопанный грунт.", exploded);
+
+        boolean rechargedYet = false;
+        for (int i = 0; i < 200 && !rechargedYet; i++) {
+            fire.update(field, monsters, bags);
+            rechargedYet = fire.canFire();
+        }
+        assertFalse("После окончания анимации взрыва и перезарядки isExploding() должен снова стать false.",
+                fire.isExploding());
+    }
+
+    @Test
     public void neverPenetratesIntoUntouchedGround() {
         // Три открытые клетки подряд, дальше — совсем нетронутый грунт.
         // Регрессия: снаряд долетал за границу последней открытой клетки на
@@ -110,6 +138,55 @@ public class FireTest {
     }
 
     @Test
+    public void explodesAgainstAnIntactBagWithoutReachingMonsterBehindIt() {
+        LevelField field = new LevelField(fullLayout('S'));
+        GoldBags bags = new GoldBags(layoutWithBagAt(5, 3));
+        Monsters monsters = new Monsters();
+        Monster monster = new Monster(7, 3);
+        monsters.all().add(monster);
+        Fire fire = new Fire();
+        fire.start(LevelField.FIELD_LEFT, monster.getY(), Direction.RIGHT);
+
+        for (int i = 0; i < 30; i++) {
+            fire.update(field, monsters, bags);
+        }
+
+        assertFalse("Целый мешок должен остановить снаряд.", monsters.all().isEmpty());
+    }
+
+    @Test
+    public void passesThroughBrokenGoldAndStillKillsMonsterBehindIt() {
+        // Сознательное отступление от оригинала (см. javadoc у Fire.updateFlying):
+        // расколотая, но еще не подобранная куча золота не должна быть
+        // физическим препятствием для снаряда — только целый мешок.
+        LevelField field = new LevelField(fullLayout('S'));
+
+        // Роняем мешок с самого верха через полностью открытое поле — падение
+        // на всю высоту поля гарантированно раскалывает его при посадке.
+        GoldBag brokenBag = new GoldBag(5, 0);
+        for (int i = 0; i < 100; i++) {
+            brokenBag.update(field);
+        }
+        assertTrue("Тестовая заготовка мешка должна была расколоться при падении.", brokenBag.isBroken());
+
+        GoldBags bags = new GoldBags(fullLayout('S'));
+        bags.add(brokenBag);
+        Monsters monsters = new Monsters();
+        int bagRow = (brokenBag.getY() - LevelField.FIELD_TOP) / LevelField.CELL_HEIGHT;
+        Monster monster = new Monster(7, bagRow);
+        monsters.all().add(monster);
+        Fire fire = new Fire();
+        fire.start(LevelField.FIELD_LEFT, brokenBag.getY(), Direction.RIGHT);
+
+        for (int i = 0; i < 30 && !monsters.all().isEmpty(); i++) {
+            fire.update(field, monsters, bags);
+        }
+
+        assertTrue("Снаряд должен пролететь сквозь расколотое золото и уничтожить монстра за ним.",
+                monsters.all().isEmpty());
+    }
+
+    @Test
     public void resetClearsInFlightBoltAndCooldownImmediately() {
         Fire fire = new Fire();
         fire.start(100, 100, Direction.RIGHT);
@@ -129,6 +206,14 @@ public class FireTest {
         for (int y = 0; y < LevelField.HEIGHT; y++) {
             layout[y] = rowText;
         }
+        return layout;
+    }
+
+    private static String[] layoutWithBagAt(int column, int row) {
+        String[] layout = fullLayout('S');
+        char[] chars = layout[row].toCharArray();
+        chars[column] = 'B';
+        layout[row] = new String(chars);
         return layout;
     }
 }

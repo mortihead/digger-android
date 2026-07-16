@@ -47,7 +47,14 @@ package org.digger.android;
 final class GameSession {
 
     private static final int STARTING_LIVES = 3;
-    private static final int RESPAWN_DELAY = 45;
+
+    /**
+     * Длиннее, чем в оригинале (было 45) — сознательное отступление от
+     * буквального тайминга ради звука: похоронный марш ({@link AndroidAudioDriver})
+     * должен успеть сыграть больше одной-двух нот, прежде чем сцена
+     * "R.I.P." закончится и Digger вернётся в игру.
+     */
+    private static final int RESPAWN_DELAY = 60;
 
     /** Кадров на одну стадию роста камня — как {@code deathtime} в оригинале. */
     private static final int GRAVE_STAGE_TIME = 2;

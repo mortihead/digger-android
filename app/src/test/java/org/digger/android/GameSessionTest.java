@@ -57,7 +57,7 @@ public class GameSessionTest {
         assertFalse(session.isDiggerActive());
 
         boolean becameActive = false;
-        for (int i = 0; i < 60 && !becameActive; i++) {
+        for (int i = 0; i < 75 && !becameActive; i++) {
             session.update(digger, monsters, bags, emeralds, fire);
             becameActive = session.isDiggerActive();
         }
@@ -100,7 +100,7 @@ public class GameSessionTest {
         for (int cycle = 0; cycle < 3 && !session.isGameOver(); cycle++) {
             monsters.all().add(monsterAtDiggerStart());
             session.update(digger, monsters, bags, emeralds, fire);
-            for (int t = 0; t < 60 && !session.isDiggerActive() && !session.isGameOver(); t++) {
+            for (int t = 0; t < 75 && !session.isDiggerActive() && !session.isGameOver(); t++) {
                 session.update(digger, monsters, bags, emeralds, fire);
             }
         }
@@ -118,7 +118,7 @@ public class GameSessionTest {
         assertEquals("Жизнь не должна списываться раньше, чем доиграет сцена гибели.", 3, session.getLives());
 
         boolean becameActive = false;
-        for (int i = 0; i < 60 && !becameActive; i++) {
+        for (int i = 0; i < 75 && !becameActive; i++) {
             session.update(digger, monsters, bags, emeralds, fire);
             becameActive = session.isDiggerActive();
         }

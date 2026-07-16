@@ -42,6 +42,9 @@ final class TouchControls {
     private static final float PAUSE_RADIUS_FRACTION = 0.05f;
     private static final float PAUSE_REACH = 1.5f;
 
+    /** Отступ центра кнопки звука от центра паузы, доля от {@code minSide} — кнопка звука встает левее паузы. */
+    private static final float MUTE_GAP_FRACTION = 0.12f;
+
     private final Map<Integer, Float> pointerX = new HashMap<>();
     private final Map<Integer, Float> pointerY = new HashMap<>();
 
@@ -74,6 +77,9 @@ final class TouchControls {
                 pointerY.put(downId, downY);
                 if (distance(downX, downY, layout.pauseX, layout.pauseY) <= layout.pauseRadius * PAUSE_REACH) {
                     input.requestPause();
+                }
+                if (distance(downX, downY, layout.muteX, layout.muteY) <= layout.muteRadius * PAUSE_REACH) {
+                    input.requestMuteToggle();
                 }
                 input.requestStart();
                 break;
@@ -135,7 +141,7 @@ final class TouchControls {
         return Math.hypot(x - cx, y - cy);
     }
 
-    void draw(Canvas canvas, int width, int height, Rect gameContent) {
+    void draw(Canvas canvas, int width, int height, Rect gameContent, boolean muted) {
         Layout layout = computeLayout(width, height, gameContent);
 
         canvas.drawCircle(layout.dpadX, layout.dpadY, layout.dpadRadius, shapePaint);
@@ -153,6 +159,27 @@ final class TouchControls {
         canvas.drawCircle(layout.pauseX, layout.pauseY, layout.pauseRadius, shapePaint);
         labelPaint.setTextSize(layout.pauseRadius * 0.9f);
         canvas.drawText("II", layout.pauseX, layout.pauseY + labelPaint.getTextSize() * 0.35f, labelPaint);
+
+        drawMuteButton(canvas, layout, muted);
+    }
+
+    /**
+     * Кнопка звука — та же нота "♪", что и при включенном звуке, плюс
+     * диагональная черта через весь круг, когда звук выключен (тот же
+     * принцип "перечеркнуто = выключено", что у стандартной иконки
+     * "динамик с крестом"), нарисованная тем же примитивом {@code drawLine},
+     * которым уже пользуется {@link #drawArrow} для D-pad — без новых
+     * drawable-ресурсов.
+     */
+    private void drawMuteButton(Canvas canvas, Layout layout, boolean muted) {
+        canvas.drawCircle(layout.muteX, layout.muteY, layout.muteRadius, shapePaint);
+        labelPaint.setTextSize(layout.muteRadius * 0.9f);
+        canvas.drawText("♪", layout.muteX, layout.muteY + labelPaint.getTextSize() * 0.35f, labelPaint);
+        if (muted) {
+            float r = layout.muteRadius * 0.8f;
+            labelPaint.setStrokeWidth(layout.muteRadius * 0.18f);
+            canvas.drawLine(layout.muteX - r, layout.muteY - r, layout.muteX + r, layout.muteY + r, labelPaint);
+        }
     }
 
     /**
@@ -178,6 +205,10 @@ final class TouchControls {
         layout.pauseX = sideCenterX(width, leftMargin, rightMargin, true);
         layout.pauseY = height * PAUSE_VERTICAL_CENTER;
         layout.pauseRadius = fitRadius(minSide * PAUSE_RADIUS_FRACTION, rightMargin);
+
+        layout.muteX = layout.pauseX - minSide * MUTE_GAP_FRACTION;
+        layout.muteY = layout.pauseY;
+        layout.muteRadius = layout.pauseRadius;
         return layout;
     }
 
@@ -235,5 +266,8 @@ final class TouchControls {
         float pauseX;
         float pauseY;
         float pauseRadius;
+        float muteX;
+        float muteY;
+        float muteRadius;
     }
 }
