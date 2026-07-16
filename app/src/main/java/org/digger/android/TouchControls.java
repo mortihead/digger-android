@@ -183,20 +183,21 @@ final class TouchControls {
      */
     private boolean resolveFire(Layout layout) {
         for (Integer id : pointerX.keySet()) {
-            float x = pointerX.get(id);
-            float y = pointerY.get(id);
-            if (x < layout.fireZoneX) {
-                continue;
+            if (isFireTouch(pointerX.get(id), pointerY.get(id), layout)) {
+                return true;
             }
-            if (distance(x, y, layout.pauseX, layout.pauseY) <= layout.pauseRadius * PAUSE_REACH) {
-                continue;
-            }
-            if (distance(x, y, layout.muteX, layout.muteY) <= layout.muteRadius * PAUSE_REACH) {
-                continue;
-            }
-            return true;
         }
         return false;
+    }
+
+    private boolean isFireTouch(float x, float y, Layout layout) {
+        if (x < layout.fireZoneX) {
+            return false;
+        }
+        if (distance(x, y, layout.pauseX, layout.pauseY) <= layout.pauseRadius * PAUSE_REACH) {
+            return false;
+        }
+        return distance(x, y, layout.muteX, layout.muteY) > layout.muteRadius * PAUSE_REACH;
     }
 
     private static double distance(float x, float y, float cx, float cy) {
@@ -207,6 +208,7 @@ final class TouchControls {
         Layout layout = computeLayout(width, height, gameContent);
 
         drawJoystick(canvas, layout);
+        drawFireTouchIndicators(canvas, layout);
 
         canvas.drawCircle(layout.fireX, layout.fireY, layout.fireRadius, shapePaint);
         labelPaint.setTextSize(layout.fireRadius * 0.55f);
@@ -253,6 +255,26 @@ final class TouchControls {
             knobY = cy + dy;
         }
         canvas.drawCircle(knobX, knobY, layout.dpadRadius * 0.4f, joystickKnobPaint);
+    }
+
+    /**
+     * Чисто визуальная обратная связь по образцу Soul Knight: под пальцем,
+     * которым сейчас стреляют (см. {@link #isFireTouch}), появляется та же
+     * полупрозрачная база, что и у джойстика движения — без "шарика", раз
+     * у выстрела нет своего направления (он всегда летит туда, куда сейчас
+     * смотрит Digger, см. {@link ControllableDigger#getFacing()} — в
+     * отличие от Soul Knight, здесь второй стик не целится). Круг просто
+     * следует за пальцем, а не остаётся на месте касания — якорь тут не
+     * нужен, раз нет ни мёртвой зоны, ни предела вытягивания.
+     */
+    private void drawFireTouchIndicators(Canvas canvas, Layout layout) {
+        for (Integer id : pointerX.keySet()) {
+            float x = pointerX.get(id);
+            float y = pointerY.get(id);
+            if (isFireTouch(x, y, layout)) {
+                canvas.drawCircle(x, y, layout.dpadRadius, joystickBasePaint);
+            }
+        }
     }
 
     /**
