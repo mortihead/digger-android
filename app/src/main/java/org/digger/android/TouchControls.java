@@ -3,7 +3,6 @@ package org.digger.android;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.Rect;
 import android.view.MotionEvent;
 
@@ -11,21 +10,26 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Экранные D-pad, кнопка огня и кнопка паузы поверх игрового экрана.
+ * Экранные D-pad, зона стрельбы и кнопка паузы поверх игрового экрана.
  *
  * <p><b>Экспериментальная ветка:</b> D-pad здесь не стоит на фиксированном
- * месте, а "плавающий" — появляется там, где палец коснулся экрана (в
- * любом месте, кроме зон кнопок FIRE/паузы/звука, которые остаются
- * фиксированными), и остаётся там же, пока этот же палец не оторвётся от
- * экрана. Направление считается от точки касания (не от центра фиксированного
- * круга), той же логикой "мертвой зоны"/"предела вытягивания" — сравнивать
- * с веткой main, где D-pad стоит на месте.
+ * месте, а "плавающий" — появляется там, где палец коснулся левой части
+ * экрана (левее {@link #FIRE_ZONE_FRACTION} ширины), в виде полупрозрачной
+ * круглой базы и непрозрачного "шарика", который тянется от центра базы к
+ * текущему положению пальца (см. {@link #drawJoystick}) — и остаётся там
+ * же, пока этот же палец не оторвётся от экрана. Направление считается от
+ * точки касания (не от центра фиксированного круга), той же логикой
+ * "мертвой зоны"/"предела вытягивания" — сравнивать с веткой main, где
+ * D-pad нарисован стрелками на фиксированном месте.
  *
- * <p>Огонь и пауза/звук — фиксированные кнопки, как раньше: огонь справа,
- * пауза — в правом верхнем углу. Игровое поле масштабируется с сохранением
- * пропорций и оставляет черные поля по краям (см. {@code GameView#updateDestination});
- * при достаточно широких полях кнопки уходят в них, чтобы не закрывать
- * видимую часть поля.
+ * <p>Стреляет любое касание правее {@link #FIRE_ZONE_FRACTION} ширины
+ * экрана, а не только тап по кругу "FIRE" — сам круг остаётся только
+ * визуальной подсказкой. Пауза и звук — фиксированные кнопки в правом
+ * верхнем углу, как раньше; они вырезаны из зоны стрельбы, чтобы удержание
+ * пальца на них не стреляло попутно. Игровое поле масштабируется с
+ * сохранением пропорций и оставляет черные поля по краям (см.
+ * {@code GameView#updateDestination}); при достаточно широких полях кнопки
+ * уходят в них, чтобы не закрывать видимую часть поля.
  *
  * <p>D-pad не различает диагонали — так же, как 4 направления клавиатуры
  * в оригинале: направление определяется по тому, какая из осей (X или Y)
@@ -42,7 +46,14 @@ final class TouchControls {
     private static final float DPAD_REACH = 1.6f;
 
     private static final float FIRE_RADIUS_FRACTION = 0.11f;
-    private static final float FIRE_REACH = 1.3f;
+
+    /**
+     * Доля ширины экрана, с которой начинается зона стрельбы: любое
+     * касание правее этой границы стреляет, а не только тап по кругу
+     * "FIRE" — круг остаётся просто визуальной подсказкой, куда целиться
+     * пальцем, а не единственным местом, куда можно нажать.
+     */
+    private static final float FIRE_ZONE_FRACTION = 0.5f;
 
     private static final float PAUSE_VERTICAL_CENTER = 0.1f;
     private static final float PAUSE_RADIUS_FRACTION = 0.05f;
@@ -65,7 +76,8 @@ final class TouchControls {
 
     private final Paint shapePaint = new Paint();
     private final Paint labelPaint = new Paint();
-    private final Path arrowPath = new Path();
+    private final Paint joystickBasePaint = new Paint();
+    private final Paint joystickKnobPaint = new Paint();
 
     TouchControls() {
         shapePaint.setColor(Color.WHITE);
@@ -75,6 +87,12 @@ final class TouchControls {
         labelPaint.setAlpha(170);
         labelPaint.setAntiAlias(true);
         labelPaint.setTextAlign(Paint.Align.CENTER);
+        joystickBasePaint.setColor(Color.WHITE);
+        joystickBasePaint.setAlpha(60);
+        joystickBasePaint.setAntiAlias(true);
+        joystickKnobPaint.setColor(Color.WHITE);
+        joystickKnobPaint.setAlpha(160);
+        joystickKnobPaint.setAntiAlias(true);
     }
 
     void onTouchEvent(MotionEvent event, int width, int height, Rect gameContent, GameInput input) {
@@ -94,11 +112,10 @@ final class TouchControls {
                     input.requestPause();
                 } else if (distance(downX, downY, layout.muteX, layout.muteY) <= layout.muteRadius * PAUSE_REACH) {
                     input.requestMuteToggle();
-                } else if (distance(downX, downY, layout.fireX, layout.fireY) > layout.fireRadius * FIRE_REACH
-                        && joystickPointerId == null) {
-                    // Не попал ни в одну фиксированную кнопку, и джойстик
-                    // сейчас никем не "занят" — этот палец заводит плавающий
-                    // D-pad прямо в точке касания.
+                } else if (downX < layout.fireZoneX && joystickPointerId == null) {
+                    // Касание левее зоны стрельбы, и джойстик сейчас никем
+                    // не "занят" — этот палец заводит плавающий D-pad прямо
+                    // в точке касания.
                     joystickPointerId = downId;
                     joystickAnchorX = downX;
                     joystickAnchorY = downY;
@@ -158,12 +175,26 @@ final class TouchControls {
         return dy > 0 ? Direction.DOWN : Direction.UP;
     }
 
+    /**
+     * Стреляет любое касание правее {@link #FIRE_ZONE_FRACTION} экрана, а
+     * не только тап точно по кругу "FIRE" — но исключая пальцы, которые в
+     * этот момент держат паузу/звук (иначе долгое удержание паузы попутно
+     * стреляло бы, раз оба круга в той же правой части экрана).
+     */
     private boolean resolveFire(Layout layout) {
         for (Integer id : pointerX.keySet()) {
-            if (distance(pointerX.get(id), pointerY.get(id), layout.fireX, layout.fireY)
-                    <= layout.fireRadius * FIRE_REACH) {
-                return true;
+            float x = pointerX.get(id);
+            float y = pointerY.get(id);
+            if (x < layout.fireZoneX) {
+                continue;
             }
+            if (distance(x, y, layout.pauseX, layout.pauseY) <= layout.pauseRadius * PAUSE_REACH) {
+                continue;
+            }
+            if (distance(x, y, layout.muteX, layout.muteY) <= layout.muteRadius * PAUSE_REACH) {
+                continue;
+            }
+            return true;
         }
         return false;
     }
@@ -175,17 +206,7 @@ final class TouchControls {
     void draw(Canvas canvas, int width, int height, Rect gameContent, boolean muted) {
         Layout layout = computeLayout(width, height, gameContent);
 
-        if (joystickPointerId != null) {
-            float cx = joystickAnchorX;
-            float cy = joystickAnchorY;
-            canvas.drawCircle(cx, cy, layout.dpadRadius, shapePaint);
-            float arrowOffset = layout.dpadRadius * 0.6f;
-            float arrowSize = layout.dpadRadius * 0.32f;
-            drawArrow(canvas, cx, cy - arrowOffset, arrowSize, Direction.UP);
-            drawArrow(canvas, cx, cy + arrowOffset, arrowSize, Direction.DOWN);
-            drawArrow(canvas, cx - arrowOffset, cy, arrowSize, Direction.LEFT);
-            drawArrow(canvas, cx + arrowOffset, cy, arrowSize, Direction.RIGHT);
-        }
+        drawJoystick(canvas, layout);
 
         canvas.drawCircle(layout.fireX, layout.fireY, layout.fireRadius, shapePaint);
         labelPaint.setTextSize(layout.fireRadius * 0.55f);
@@ -199,12 +220,46 @@ final class TouchControls {
     }
 
     /**
+     * Плавающий джойстик: полупрозрачная база в точке касания плюс
+     * непрозрачный "шарик"-стик, который тянется в сторону текущего
+     * положения пальца, но не дальше {@code DPAD_REACH} радиусов базы —
+     * ровно тот же предел, за которым {@link #resolveDirection} перестаёт
+     * засчитывать направление, так что шарик визуально "упирается" в край
+     * именно там, где ввод реально перестаёт работать.
+     */
+    private void drawJoystick(Canvas canvas, Layout layout) {
+        if (joystickPointerId == null) {
+            return;
+        }
+        float cx = joystickAnchorX;
+        float cy = joystickAnchorY;
+        canvas.drawCircle(cx, cy, layout.dpadRadius, joystickBasePaint);
+
+        Float px = pointerX.get(joystickPointerId);
+        Float py = pointerY.get(joystickPointerId);
+        float knobX = cx;
+        float knobY = cy;
+        if (px != null && py != null) {
+            float dx = px - cx;
+            float dy = py - cy;
+            double dist = Math.hypot(dx, dy);
+            double maxDist = layout.dpadRadius * DPAD_REACH;
+            if (dist > maxDist && dist > 0) {
+                double scale = maxDist / dist;
+                dx *= scale;
+                dy *= scale;
+            }
+            knobX = cx + dx;
+            knobY = cy + dy;
+        }
+        canvas.drawCircle(knobX, knobY, layout.dpadRadius * 0.4f, joystickKnobPaint);
+    }
+
+    /**
      * Кнопка звука — та же нота "♪", что и при включенном звуке, плюс
      * диагональная черта через весь круг, когда звук выключен (тот же
      * принцип "перечеркнуто = выключено", что у стандартной иконки
-     * "динамик с крестом"), нарисованная тем же примитивом {@code drawLine},
-     * которым уже пользуется {@link #drawArrow} для D-pad — без новых
-     * drawable-ресурсов.
+     * "динамик с крестом"), нарисованная тем же примитивом {@code drawLine}.
      */
     private void drawMuteButton(Canvas canvas, Layout layout, boolean muted) {
         canvas.drawCircle(layout.muteX, layout.muteY, layout.muteRadius, shapePaint);
@@ -231,6 +286,7 @@ final class TouchControls {
 
         Layout layout = new Layout();
         layout.dpadRadius = minSide * DPAD_RADIUS_FRACTION;
+        layout.fireZoneX = width * FIRE_ZONE_FRACTION;
 
         layout.fireX = rightSideCenterX(width, rightMargin);
         layout.fireY = height * VERTICAL_CENTER;
@@ -258,38 +314,9 @@ final class TouchControls {
         return preferredRadius;
     }
 
-    private void drawArrow(Canvas canvas, float cx, float cy, float size, Direction direction) {
-        arrowPath.reset();
-        switch (direction) {
-            case UP:
-                arrowPath.moveTo(cx, cy - size);
-                arrowPath.lineTo(cx - size, cy + size);
-                arrowPath.lineTo(cx + size, cy + size);
-                break;
-            case DOWN:
-                arrowPath.moveTo(cx, cy + size);
-                arrowPath.lineTo(cx - size, cy - size);
-                arrowPath.lineTo(cx + size, cy - size);
-                break;
-            case LEFT:
-                arrowPath.moveTo(cx - size, cy);
-                arrowPath.lineTo(cx + size, cy - size);
-                arrowPath.lineTo(cx + size, cy + size);
-                break;
-            case RIGHT:
-                arrowPath.moveTo(cx + size, cy);
-                arrowPath.lineTo(cx - size, cy - size);
-                arrowPath.lineTo(cx - size, cy + size);
-                break;
-            default:
-                return;
-        }
-        arrowPath.close();
-        canvas.drawPath(arrowPath, labelPaint);
-    }
-
     private static final class Layout {
         float dpadRadius;
+        float fireZoneX;
         float fireX;
         float fireY;
         float fireRadius;
