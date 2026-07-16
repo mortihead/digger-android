@@ -174,4 +174,15 @@ final class GameSession {
     boolean isLevelComplete() {
         return levelComplete;
     }
+
+    /**
+     * Снимает флаг "уровень пройден" при переходе на следующий уровень —
+     * жизни и очки при этом намеренно не трогаются (они принадлежат партии
+     * целиком, не отдельному уровню — перенос того, что оригинальный
+     * {@code Main.play()} между уровнями зовет {@code initLevel()}, а не
+     * заново создает {@code GameData}).
+     */
+    void startNextLevel() {
+        levelComplete = false;
+    }
 }

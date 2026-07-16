@@ -180,6 +180,25 @@ public class GameSessionTest {
         assertTrue("Если изумрудов не осталось, уровень должен считаться пройденным.", session.isLevelComplete());
     }
 
+    @Test
+    public void startNextLevelClearsLevelCompleteButKeepsLivesAndScore() {
+        EmeraldField singleEmerald = new EmeraldField(layoutWithEmeraldAt(0, 0));
+        singleEmerald.collect(LevelField.FIELD_LEFT + 12, LevelField.FIELD_TOP, Direction.LEFT);
+        session.update(digger, monsters, bags, singleEmerald, fire);
+        session.getScore().addEmerald();
+        assertTrue(session.isLevelComplete());
+        int livesBefore = session.getLives();
+        int scoreBefore = session.getScore().getPoints();
+
+        session.startNextLevel();
+
+        assertFalse("После перехода на новый уровень флаг прохождения должен сняться.",
+                session.isLevelComplete());
+        assertEquals("Жизни не должны сбрасываться между уровнями одной партии.", livesBefore, session.getLives());
+        assertEquals("Очки не должны сбрасываться между уровнями одной партии.",
+                scoreBefore, session.getScore().getPoints());
+    }
+
     private Monster monsterAtDiggerStart() {
         int cellX = (digger.getX() - LevelField.FIELD_LEFT) / LevelField.CELL_WIDTH;
         int cellY = (digger.getY() - LevelField.FIELD_TOP) / LevelField.CELL_HEIGHT;

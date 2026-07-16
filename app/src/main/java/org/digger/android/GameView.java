@@ -38,6 +38,16 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     private static final int GAME_OVER_DISPLAY_FRAMES = 90;
 
     /**
+     * Сколько кадров держится баннер "LEVEL DONE", прежде чем начнется
+     * следующий уровень. В оригинале это не таймер, а РЕАЛЬНОЕ время
+     * блокирующего проигрыша {@code soundLevDone()} (~3с) — здесь джингл
+     * не блокирует поток (см. {@link AndroidAudioDriver#playLevelComplete()}),
+     * поэтому нужна отдельная пауза, чтобы игрок успел увидеть баннер и
+     * услышать джингл, прежде чем поле перестроится под новый уровень.
+     */
+    private static final int LEVEL_DONE_DISPLAY_FRAMES = 90;
+
+    /**
      * Таймаут "зажатости" для первых {@link #KEY_HOLD_RAMP_UP_PRESSES} нажатий
      * подряд одной и той же клавиши — должен пережить паузу ОС перед первым
      * автоповтором (в этом эмуляторе ~400мс). Раньше стоял короче (250мс) в
@@ -87,7 +97,9 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     private GameSession session;
 
     private Mode mode = Mode.TITLE;
+    private int currentLevel = 1;
     private int gameOverTimer;
+    private int levelDoneTimer;
     private int emeraldScaleStep;
     private boolean levelCompleteAnnounced;
     private boolean[] wasBagWobbling = new boolean[0];
@@ -406,27 +418,45 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
     }
 
     /**
-     * Заново создает все объекты партии — перенос {@code initLevel()}/
-     * {@code initChars()} при переходе с title screen к игре в оригинале.
+     * Начинает партию заново с первого уровня — перенос создания
+     * {@code GameData}/{@code initChars()} при переходе с title screen к
+     * игре в оригинале. Жизни и очки принадлежат {@link #session}, которая
+     * тут пересоздается с нуля — в отличие от {@link #startLevel}, которая
+     * их не трогает при переходе между уровнями ОДНОЙ партии.
      */
     private void startNewGame() {
-        levelField = new LevelField(LevelData.PLAN_1);
-        emeraldField = new EmeraldField(LevelData.PLAN_1);
-        goldBags = new GoldBags(LevelData.PLAN_1);
-        monsters = new Monsters();
-        digger = new ControllableDigger();
-        fire = new Fire();
+        currentLevel = 1;
         session = new GameSession();
         paused = false;
         gameOverTimer = 0;
+        gameInput.consumePauseRequest();
+        mode = Mode.PLAYING;
+        startLevel(currentLevel);
+    }
+
+    /**
+     * Перестраивает поле/изумруды/мешки/монстров/Digger'а/снаряд под план
+     * заданного уровня — перенос {@code initLevel()}/{@code initChars()}
+     * оригинала при переходе на следующий уровень (не трогает жизни/очки —
+     * см. {@link GameSession#startNextLevel}). Схема поля выбирается той же
+     * логикой, что {@code Main.getLevelPlan()} — {@link LevelData#forLevel}.
+     */
+    private void startLevel(int level) {
+        String[] plan = LevelData.forLevel(level);
+        levelField = new LevelField(plan);
+        emeraldField = new EmeraldField(plan);
+        goldBags = new GoldBags(plan);
+        monsters = new Monsters();
+        digger = new ControllableDigger();
+        fire = new Fire();
+        fire.setLevel(level);
+        levelDoneTimer = 0;
         emeraldScaleStep = 0;
         levelCompleteAnnounced = false;
         int bagCount = goldBags.all().size();
         wasBagWobbling = new boolean[bagCount];
         wasBagFalling = new boolean[bagCount];
         wasBagBroken = new boolean[bagCount];
-        gameInput.consumePauseRequest();
-        mode = Mode.PLAYING;
         audioDriver.playBackgroundMusic();
     }
 
@@ -535,6 +565,15 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
             if (gameOverTimer >= GAME_OVER_DISPLAY_FRAMES) {
                 mode = Mode.TITLE;
                 return;
+            }
+        }
+
+        if (session.isLevelComplete()) {
+            levelDoneTimer++;
+            if (levelDoneTimer >= LEVEL_DONE_DISPLAY_FRAMES) {
+                currentLevel++;
+                session.startNextLevel();
+                startLevel(currentLevel);
             }
         }
 

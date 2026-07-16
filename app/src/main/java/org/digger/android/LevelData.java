@@ -3,9 +3,12 @@ package org.digger.android;
 /**
  * Текстовые схемы планов уровней, перенесенные из {@code Main.levelData}.
  *
- * <p>Пока перенесен только первый план — его достаточно для статической
- * проверки отрисовки поля. Остальные семь планов будут перенесены вместе
- * с игровой логикой (выбор плана по номеру уровня).
+ * <p>Пока перенесены два плана из восьми оригинальных — остальные шесть
+ * будут добавлены позже. До тех пор {@link #forLevel} просто циклически
+ * повторяет уже перенесенные планы, а не встаёт в тупик после последнего —
+ * тот же принцип, что и в оригинальном {@code Main.getLevelPlan()}, который
+ * после 8 уровня тоже не останавливается, а зацикливает planы 5-8 (see
+ * {@code getLevelPlan()}: {@code "Level plan: 12345678, 678, (5678) 247 times, 5 forever"}).
  */
 final class LevelData {
 
@@ -20,6 +23,30 @@ final class LevelData {
             " HHHH     V    ",
             "C   V     V   C",
             "CC  HHHHHHH  CC"};
+
+    static final String[] PLAN_2 = {
+            "SHHHHH  B B  HS",
+            " CC  V       V ",
+            " CC  V CCCCC V ",
+            "BCCB V CCCCC V ",
+            "CCCC V       V ",
+            "CCCC V B  HHHH ",
+            " CC  V CC V    ",
+            " BB  VCCCCV CC ",
+            "C    V CC V CC ",
+            "CC   HHHHHH    "};
+
+    private static final String[][] PLANS = {PLAN_1, PLAN_2};
+
+    /**
+     * Схема для заданного номера уровня (1-based) — прямое соответствие
+     * {@code getLevelPlan()} оригинала, пока не перенесены все 8 планов:
+     * циклический повтор уже перенесенных планов вместо тупика.
+     */
+    static String[] forLevel(int level) {
+        int index = Math.max(level - 1, 0) % PLANS.length;
+        return PLANS[index];
+    }
 
     private LevelData() {
     }

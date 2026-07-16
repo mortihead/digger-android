@@ -43,6 +43,42 @@ public class FireTest {
     }
 
     @Test
+    public void rechargeTimeScalesWithLevelAndCapsAtTen() {
+        LevelField field = new LevelField(fullLayout('S'));
+        Monsters monsters = new Monsters();
+        GoldBags bags = new GoldBags(fullLayout('S'));
+
+        Fire levelOneFire = new Fire();
+        int framesToRechargeLevelOne = framesUntilReady(levelOneFire, field, monsters, bags);
+
+        Fire levelTenFire = new Fire();
+        levelTenFire.setLevel(10);
+        int framesToRechargeLevelTen = framesUntilReady(levelTenFire, field, monsters, bags);
+
+        Fire levelTwentyFire = new Fire();
+        levelTwentyFire.setLevel(20);
+        int framesToRechargeLevelTwenty = framesUntilReady(levelTwentyFire, field, monsters, bags);
+
+        assertTrue("Перезарядка на 10 уровне должна быть дольше, чем на первом.",
+                framesToRechargeLevelTen > framesToRechargeLevelOne);
+        assertEquals("Уровни выше 10 должны давать то же время перезарядки, что и 10-й (капается).",
+                framesToRechargeLevelTen, framesToRechargeLevelTwenty);
+    }
+
+    private static int framesUntilReady(Fire fire, LevelField field, Monsters monsters, GoldBags bags) {
+        int lastColumn = LevelField.WIDTH - 1;
+        int startX = LevelField.FIELD_LEFT + lastColumn * LevelField.CELL_WIDTH;
+        int startY = LevelField.FIELD_TOP;
+        fire.start(startX, startY, Direction.RIGHT);
+        int frames = 0;
+        while (!fire.canFire() && frames < 300) {
+            fire.update(field, monsters, bags);
+            frames++;
+        }
+        return frames;
+    }
+
+    @Test
     public void stopsImmediatelyAgainstUndugGround() {
         // Вертикаль везде перекрыта ('H' роет только горизонталь) — снаряд,
         // выпущенный вниз, должен взорваться на месте, не сдвинувшись.

@@ -5,8 +5,10 @@ package org.digger.android;
  *
  * <p>Одновременно может лететь только один снаряд (как и в оригинале): пока он
  * летит или взрывается, повторное нажатие огня игнорируется, а после взрыва
- * начинается перезарядка ({@link #RECHARGE_TIME} кадров — то же значение, что
- * дает оригинальная формула {@code level * 3 + 60} для первого уровня).
+ * начинается перезарядка — {@code getLevelNumberClampedToTen() * 3 + 60} кадров
+ * оригинала, растёт с номером уровня (см. {@link #setLevel}) и капается на
+ * уровне 10, как и в оригинале. По умолчанию (пока {@link #setLevel} ни разу
+ * не вызван) — те же 63 кадра, что дает формула для первого уровня.
  *
  * <p>Снаряд летит по прямой шагами {@link #H_STEP}px/{@link #V_STEP}px —
  * вдвое быстрее самого Digger'а, как в оригинале. Взрывается при попадании в
@@ -20,7 +22,9 @@ final class Fire {
 
     private static final int H_STEP = 8;
     private static final int V_STEP = 7;
-    private static final int RECHARGE_TIME = 63;
+    private static final int RECHARGE_BASE = 60;
+    private static final int RECHARGE_PER_LEVEL = 3;
+    private static final int RECHARGE_MAX_LEVEL = 10;
     private static final int EXPLOSION_STAGES = 3;
     private static final int FIRE_FRAME_COUNT = 3;
 
@@ -33,11 +37,23 @@ final class Fire {
     private int y;
     private Direction direction = Direction.NONE;
     private int rechargeTimer;
+    private int rechargeTime = RECHARGE_BASE + RECHARGE_PER_LEVEL;
     private int flightFrame;
     private int explosionStage;
 
     boolean canFire() {
         return state == State.IDLE && rechargeTimer == 0;
+    }
+
+    /**
+     * Пересчитывает время перезарядки под текущий уровень — перенос
+     * {@code getLevelNumberClampedToTen() * 3 + 60}. Не трогает снаряд,
+     * который уже летит/взрывается или уже перезаряжается — новое значение
+     * применится только к следующей перезарядке.
+     */
+    void setLevel(int level) {
+        int clamped = Math.min(Math.max(level, 1), RECHARGE_MAX_LEVEL);
+        rechargeTime = clamped * RECHARGE_PER_LEVEL + RECHARGE_BASE;
     }
 
     /**
@@ -104,7 +120,7 @@ final class Fire {
                 explosionStage++;
                 if (explosionStage > EXPLOSION_STAGES) {
                     state = State.IDLE;
-                    rechargeTimer = RECHARGE_TIME;
+                    rechargeTimer = rechargeTime;
                 }
                 break;
         }
