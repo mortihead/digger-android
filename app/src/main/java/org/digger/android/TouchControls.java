@@ -13,17 +13,23 @@ import java.util.Map;
 /**
  * Экранные D-pad, кнопка огня и кнопка паузы поверх игрового экрана.
  *
- * <p>Раскладка: D-pad слева, огонь справа, пауза — в правом верхнем углу.
- * Игровое поле масштабируется с сохранением пропорций и оставляет черные
- * поля по краям (см. {@code GameView#updateDestination}); при достаточно
- * широких полях кнопки уходят в них, чтобы не закрывать видимую часть
- * поля. Если полей нет или они слишком узкие для кнопки — кнопки
- * прижимаются к истинному краю экрана поверх поля (запасной вариант для
- * нетипичных пропорций экрана).
+ * <p><b>Экспериментальная ветка:</b> D-pad здесь не стоит на фиксированном
+ * месте, а "плавающий" — появляется там, где палец коснулся экрана (в
+ * любом месте, кроме зон кнопок FIRE/паузы/звука, которые остаются
+ * фиксированными), и остаётся там же, пока этот же палец не оторвётся от
+ * экрана. Направление считается от точки касания (не от центра фиксированного
+ * круга), той же логикой "мертвой зоны"/"предела вытягивания" — сравнивать
+ * с веткой main, где D-pad стоит на месте.
+ *
+ * <p>Огонь и пауза/звук — фиксированные кнопки, как раньше: огонь справа,
+ * пауза — в правом верхнем углу. Игровое поле масштабируется с сохранением
+ * пропорций и оставляет черные поля по краям (см. {@code GameView#updateDestination});
+ * при достаточно широких полях кнопки уходят в них, чтобы не закрывать
+ * видимую часть поля.
  *
  * <p>D-pad не различает диагонали — так же, как 4 направления клавиатуры
  * в оригинале: направление определяется по тому, какая из осей (X или Y)
- * от центра D-pad больше.
+ * от точки касания больше.
  */
 final class TouchControls {
 
@@ -47,6 +53,15 @@ final class TouchControls {
 
     private final Map<Integer, Float> pointerX = new HashMap<>();
     private final Map<Integer, Float> pointerY = new HashMap<>();
+
+    /**
+     * Палец, который сейчас "держит" плавающий D-pad, и точка, где он
+     * коснулся экрана (центр, от которого считается направление) — {@code null},
+     * если джойстик сейчас не активен (никто не касается зоны движения).
+     */
+    private Integer joystickPointerId;
+    private float joystickAnchorX;
+    private float joystickAnchorY;
 
     private final Paint shapePaint = new Paint();
     private final Paint labelPaint = new Paint();
@@ -77,9 +92,16 @@ final class TouchControls {
                 pointerY.put(downId, downY);
                 if (distance(downX, downY, layout.pauseX, layout.pauseY) <= layout.pauseRadius * PAUSE_REACH) {
                     input.requestPause();
-                }
-                if (distance(downX, downY, layout.muteX, layout.muteY) <= layout.muteRadius * PAUSE_REACH) {
+                } else if (distance(downX, downY, layout.muteX, layout.muteY) <= layout.muteRadius * PAUSE_REACH) {
                     input.requestMuteToggle();
+                } else if (distance(downX, downY, layout.fireX, layout.fireY) > layout.fireRadius * FIRE_REACH
+                        && joystickPointerId == null) {
+                    // Не попал ни в одну фиксированную кнопку, и джойстик
+                    // сейчас никем не "занят" — этот палец заводит плавающий
+                    // D-pad прямо в точке касания.
+                    joystickPointerId = downId;
+                    joystickAnchorX = downX;
+                    joystickAnchorY = downY;
                 }
                 input.requestStart();
                 break;
@@ -94,11 +116,15 @@ final class TouchControls {
                 int upId = event.getPointerId(actionIndex);
                 pointerX.remove(upId);
                 pointerY.remove(upId);
+                if (joystickPointerId != null && joystickPointerId == upId) {
+                    joystickPointerId = null;
+                }
                 break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
                 pointerX.clear();
                 pointerY.clear();
+                joystickPointerId = null;
                 break;
             default:
                 break;
@@ -109,22 +135,27 @@ final class TouchControls {
     }
 
     private Direction resolveDirection(Layout layout) {
+        if (joystickPointerId == null) {
+            return Direction.NONE;
+        }
+        Float px = pointerX.get(joystickPointerId);
+        Float py = pointerY.get(joystickPointerId);
+        if (px == null || py == null) {
+            return Direction.NONE;
+        }
+
         float deadzone = layout.dpadRadius * DPAD_DEADZONE;
         float reach = layout.dpadRadius * DPAD_REACH;
-
-        for (Integer id : pointerX.keySet()) {
-            float dx = pointerX.get(id) - layout.dpadX;
-            float dy = pointerY.get(id) - layout.dpadY;
-            double dist = Math.hypot(dx, dy);
-            if (dist < deadzone || dist > reach) {
-                continue;
-            }
-            if (Math.abs(dx) > Math.abs(dy)) {
-                return dx > 0 ? Direction.RIGHT : Direction.LEFT;
-            }
-            return dy > 0 ? Direction.DOWN : Direction.UP;
+        float dx = px - joystickAnchorX;
+        float dy = py - joystickAnchorY;
+        double dist = Math.hypot(dx, dy);
+        if (dist < deadzone || dist > reach) {
+            return Direction.NONE;
         }
-        return Direction.NONE;
+        if (Math.abs(dx) > Math.abs(dy)) {
+            return dx > 0 ? Direction.RIGHT : Direction.LEFT;
+        }
+        return dy > 0 ? Direction.DOWN : Direction.UP;
     }
 
     private boolean resolveFire(Layout layout) {
@@ -144,13 +175,17 @@ final class TouchControls {
     void draw(Canvas canvas, int width, int height, Rect gameContent, boolean muted) {
         Layout layout = computeLayout(width, height, gameContent);
 
-        canvas.drawCircle(layout.dpadX, layout.dpadY, layout.dpadRadius, shapePaint);
-        float arrowOffset = layout.dpadRadius * 0.6f;
-        float arrowSize = layout.dpadRadius * 0.32f;
-        drawArrow(canvas, layout.dpadX, layout.dpadY - arrowOffset, arrowSize, Direction.UP);
-        drawArrow(canvas, layout.dpadX, layout.dpadY + arrowOffset, arrowSize, Direction.DOWN);
-        drawArrow(canvas, layout.dpadX - arrowOffset, layout.dpadY, arrowSize, Direction.LEFT);
-        drawArrow(canvas, layout.dpadX + arrowOffset, layout.dpadY, arrowSize, Direction.RIGHT);
+        if (joystickPointerId != null) {
+            float cx = joystickAnchorX;
+            float cy = joystickAnchorY;
+            canvas.drawCircle(cx, cy, layout.dpadRadius, shapePaint);
+            float arrowOffset = layout.dpadRadius * 0.6f;
+            float arrowSize = layout.dpadRadius * 0.32f;
+            drawArrow(canvas, cx, cy - arrowOffset, arrowSize, Direction.UP);
+            drawArrow(canvas, cx, cy + arrowOffset, arrowSize, Direction.DOWN);
+            drawArrow(canvas, cx - arrowOffset, cy, arrowSize, Direction.LEFT);
+            drawArrow(canvas, cx + arrowOffset, cy, arrowSize, Direction.RIGHT);
+        }
 
         canvas.drawCircle(layout.fireX, layout.fireY, layout.fireRadius, shapePaint);
         labelPaint.setTextSize(layout.fireRadius * 0.55f);
@@ -183,26 +218,25 @@ final class TouchControls {
     }
 
     /**
-     * Считает позиции и радиусы кнопок для текущего размера View. D-pad и
-     * пауза стремятся встать в левое черное поле, огонь и пауза — в правое;
-     * если поле у́же {@link #MIN_MARGIN_PX}, кнопка вместо этого прижимается
-     * к истинному краю экрана поверх игрового поля.
+     * Считает позиции и радиусы кнопок для текущего размера View. Радиус
+     * D-pad больше не завязан на ширину левого черного поля — плавающий
+     * джойстик может появиться где угодно поверх игрового поля, поэтому
+     * его размер это просто доля от {@code minSide}, без подгонки под
+     * ширину бокового отступа (в отличие от паузы/звука/огня, которые
+     * по-прежнему стремятся встать в поля по краям экрана).
      */
     private Layout computeLayout(int width, int height, Rect gameContent) {
-        int leftMargin = Math.max(0, gameContent.left);
         int rightMargin = Math.max(0, width - gameContent.right);
         float minSide = Math.min(width, height);
 
         Layout layout = new Layout();
-        layout.dpadX = sideCenterX(width, leftMargin, rightMargin, false);
-        layout.dpadY = height * VERTICAL_CENTER;
-        layout.dpadRadius = fitRadius(minSide * DPAD_RADIUS_FRACTION, leftMargin);
+        layout.dpadRadius = minSide * DPAD_RADIUS_FRACTION;
 
-        layout.fireX = sideCenterX(width, leftMargin, rightMargin, true);
+        layout.fireX = rightSideCenterX(width, rightMargin);
         layout.fireY = height * VERTICAL_CENTER;
         layout.fireRadius = fitRadius(minSide * FIRE_RADIUS_FRACTION, rightMargin);
 
-        layout.pauseX = sideCenterX(width, leftMargin, rightMargin, true);
+        layout.pauseX = rightSideCenterX(width, rightMargin);
         layout.pauseY = height * PAUSE_VERTICAL_CENTER;
         layout.pauseRadius = fitRadius(minSide * PAUSE_RADIUS_FRACTION, rightMargin);
 
@@ -212,10 +246,8 @@ final class TouchControls {
         return layout;
     }
 
-    private static float sideCenterX(int width, int leftMargin, int rightMargin, boolean rightSide) {
-        if (!rightSide) {
-            return leftMargin >= MIN_MARGIN_PX ? leftMargin / 2f : width * EDGE_FRACTION;
-        }
+    /** Центр по X для кнопок правого края — в поле за игровым полем, либо прижат к истинному краю экрана. */
+    private static float rightSideCenterX(int width, int rightMargin) {
         return rightMargin >= MIN_MARGIN_PX ? width - rightMargin / 2f : width * (1f - EDGE_FRACTION);
     }
 
@@ -257,8 +289,6 @@ final class TouchControls {
     }
 
     private static final class Layout {
-        float dpadX;
-        float dpadY;
         float dpadRadius;
         float fireX;
         float fireY;
