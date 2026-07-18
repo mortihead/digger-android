@@ -14,7 +14,7 @@ public class GoldBagsTest {
         GoldBag bag = bags.collidingWith(LevelField.FIELD_LEFT + 5 * LevelField.CELL_WIDTH, LevelField.FIELD_TOP);
         int startX = bag.getX();
 
-        boolean pushed = bags.push(bag, Direction.RIGHT);
+        boolean pushed = bags.push(bag, Direction.RIGHT, openField());
 
         assertTrue("Толкание ничем не заблокированного мешка должно удаваться.", pushed);
         assertEquals("Мешок должен сдвинуться ровно на один шаг.", startX + 4, bag.getX());
@@ -30,12 +30,13 @@ public class GoldBagsTest {
         GoldBag first = bags.collidingWith(LevelField.FIELD_LEFT + 5 * LevelField.CELL_WIDTH, LevelField.FIELD_TOP);
         GoldBag second = bags.collidingWith(LevelField.FIELD_LEFT + 6 * LevelField.CELL_WIDTH, LevelField.FIELD_TOP);
         int secondStartX = second.getX();
+        LevelField field = openField();
 
-        assertTrue("Первый толчок выбирает зазор между мешками.", bags.push(first, Direction.RIGHT));
+        assertTrue("Первый толчок выбирает зазор между мешками.", bags.push(first, Direction.RIGHT, field));
         assertEquals("Второй мешок пока не должен сдвинуться.", secondStartX, second.getX());
 
         assertTrue("Второй толчок должен передаться по цепочке на второй мешок.",
-                bags.push(first, Direction.RIGHT));
+                bags.push(first, Direction.RIGHT, field));
         assertTrue("Второй мешок должен сдвинуться цепочкой.", second.getX() > secondStartX);
     }
 
@@ -46,10 +47,34 @@ public class GoldBagsTest {
         GoldBag bag = bags.collidingWith(LevelField.FIELD_LEFT + lastColumn * LevelField.CELL_WIDTH, LevelField.FIELD_TOP);
         int startX = bag.getX();
 
-        boolean pushed = bags.push(bag, Direction.RIGHT);
+        boolean pushed = bags.push(bag, Direction.RIGHT, openField());
 
         assertFalse("Толкание мешка у края поля должно проваливаться.", pushed);
         assertEquals("Мешок не должен сдвинуться, если толкание не удалось.", startX, bag.getX());
+    }
+
+    @Test
+    public void pushFailsIntoUndugGroundAndLeavesBagInPlace() {
+        // Регрессия: монстр (или Digger) мог протолкнуть мешок сквозь
+        // нетронутый грунт в клетку, до которой больше никак не добраться —
+        // Digger оказывался заперт. В оригинале такое толкание тоже
+        // откатывается (см. javadoc GoldBags#push). Толкание внутри уже
+        // занятой мешком клетки (первые 4 толчка) терраин не проверяет —
+        // граница проверяется только при переходе в соседнюю клетку (5-й).
+        GoldBags bags = layoutWithBagsAt(5);
+        GoldBag bag = bags.collidingWith(LevelField.FIELD_LEFT + 5 * LevelField.CELL_WIDTH, LevelField.FIELD_TOP);
+        LevelField untouchedField = new LevelField(fullLayout(' '));
+        for (int i = 0; i < 4; i++) {
+            assertTrue("Толкание внутри уже занятой мешком клетки должно удаваться.",
+                    bags.push(bag, Direction.RIGHT, untouchedField));
+        }
+        int xBeforeBoundary = bag.getX();
+
+        boolean crossedIntoUndugCell = bags.push(bag, Direction.RIGHT, untouchedField);
+
+        assertFalse("Толкание мешка в непрокопанный грунт соседней клетки должно проваливаться.",
+                crossedIntoUndugCell);
+        assertEquals("Мешок не должен сдвинуться, если толкание не удалось.", xBeforeBoundary, bag.getX());
     }
 
     @Test
@@ -65,8 +90,13 @@ public class GoldBagsTest {
         bag.update(openBelow);
 
         assertTrue("Мешок должен начать раскачиваться, когда под ним открыт проход.", bag.isWobbling());
-        assertTrue("Раскачивающийся мешок все еще должен толкаться, как обычный.", bags.push(bag, Direction.RIGHT));
+        assertTrue("Раскачивающийся мешок все еще должен толкаться, как обычный.",
+                bags.push(bag, Direction.RIGHT, openField()));
         assertEquals("Толчок должен сдвинуть мешок ровно на один шаг.", startX + 4, bag.getX());
+    }
+
+    private static LevelField openField() {
+        return new LevelField(fullLayout('S'));
     }
 
     private static GoldBags layoutWithBagsAt(int... columns) {

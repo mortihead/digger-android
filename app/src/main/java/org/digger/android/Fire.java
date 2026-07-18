@@ -5,10 +5,12 @@ package org.digger.android;
  *
  * <p>Одновременно может лететь только один снаряд (как и в оригинале): пока он
  * летит или взрывается, повторное нажатие огня игнорируется, а после взрыва
- * начинается перезарядка — {@code getLevelNumberClampedToTen() * 3 + 60} кадров
- * оригинала, растёт с номером уровня (см. {@link #setLevel}) и капается на
- * уровне 10, как и в оригинале. По умолчанию (пока {@link #setLevel} ни разу
- * не вызван) — те же 63 кадра, что дает формула для первого уровня.
+ * начинается перезарядка — {@code getLevelNumberClampedToTen() * RECHARGE_PER_LEVEL
+ * + RECHARGE_BASE} кадров, растёт с номером уровня (см. {@link #setLevel}) и
+ * капается на уровне 10, как и в оригинале. Сами константы, в отличие от
+ * оригинальных 60/3, сознательно уменьшены примерно на пятую часть — по
+ * отзывам тестеров игра ощущалась слишком хардкорной, и более быстрая
+ * перезарядка облегчает её, не трогая остальную механику.
  *
  * <p>Снаряд летит по прямой шагами {@link #H_STEP}px/{@link #V_STEP}px —
  * вдвое быстрее самого Digger'а, как в оригинале. Взрывается при попадании в
@@ -22,8 +24,8 @@ final class Fire {
 
     private static final int H_STEP = 8;
     private static final int V_STEP = 7;
-    private static final int RECHARGE_BASE = 60;
-    private static final int RECHARGE_PER_LEVEL = 3;
+    private static final int RECHARGE_BASE = 48;
+    private static final int RECHARGE_PER_LEVEL = 2;
     private static final int RECHARGE_MAX_LEVEL = 10;
     private static final int EXPLOSION_STAGES = 3;
     private static final int FIRE_FRAME_COUNT = 3;

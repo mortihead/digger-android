@@ -447,6 +447,7 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         emeraldField = new EmeraldField(plan);
         goldBags = new GoldBags(plan);
         monsters = new Monsters();
+        monsters.setLevel(level);
         digger = new ControllableDigger();
         fire = new Fire();
         fire.setLevel(level);

@@ -114,7 +114,7 @@ final class ControllableDigger {
         }
 
         Direction attempted = committed;
-        committed = bags.resolveMovement(x, y, committed);
+        committed = bags.resolveMovement(x, y, committed, field);
         stuckOn = (attempted != Direction.NONE && committed == Direction.NONE) ? attempted : Direction.NONE;
 
         if (committed != Direction.NONE) {

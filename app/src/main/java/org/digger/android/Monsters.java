@@ -8,6 +8,9 @@ import java.util.List;
  * {@code doMonsters} с константами первого уровня ({@code getLevelNumberClampedToTen() == 1}):
  * всего 6 монстров за уровень, не более 3 одновременно на экране, пауза
  * между появлениями 43 кадра, первый монстр — через 10 кадров после старта.
+ * В оригинале эти константы растут с номером уровня; здесь — намеренно
+ * зафиксированы на значениях первого уровня для всех уровней, чтобы число
+ * монстров не увеличивалось по мере прохождения игры.
  *
  * <p>Гибель монстра (например, раздавленного падающим мешком) сюда не
  * входит и обрабатывается снаружи через {@link #all()} — этот класс только
@@ -23,12 +26,24 @@ final class Monsters {
     private final List<Monster> monsters = new ArrayList<>();
     private int spawnedCount;
     private int nextSpawnTime = INITIAL_DELAY;
+    private int level = 1;
+
+    /**
+     * Влияет на "тупость" направления новых монстров на перекрестках (см.
+     * {@link Monster#setLevel}) — расписание появления (константы этого
+     * класса) от уровня сознательно не зависит, см. класс-javadoc.
+     */
+    void setLevel(int level) {
+        this.level = level;
+    }
 
     void update(LevelField field, GoldBags bags, int diggerX, int diggerY) {
         if (nextSpawnTime > 0) {
             nextSpawnTime--;
         } else if (spawnedCount < TOTAL_MONSTERS && monsters.size() < MAX_ON_SCREEN) {
-            monsters.add(new Monster());
+            Monster monster = new Monster();
+            monster.setLevel(level);
+            monsters.add(monster);
             spawnedCount++;
             nextSpawnTime = SPAWN_GAP;
         }

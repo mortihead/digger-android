@@ -70,10 +70,20 @@ final class GoldBags {
     /**
      * Пытается толкнуть мешок на один шаг в направлении {@code direction}.
      * Мешок, стоящий на пути, толкается первым (цепная реакция); если хоть
-     * одно звено цепочки уперлось в край поля или в нераскачивающийся/непадающий
-     * мешок — толкание не удаётся, и ни один мешок не двигается.
+     * одно звено цепочки уперлось в край поля, в непрокопанный грунт или в
+     * нераскачивающийся/непадающий мешок — толкание не удаётся, и ни один
+     * мешок не двигается.
+     *
+     * <p>Проверка грунта — перенос отката толкания в оригинале при попадании
+     * {@code clbits} (толкаемый мешок не должен въезжать в клетку, которую
+     * никто еще не копал). Без неё Digger или монстр мог протолкнуть мешок
+     * сквозь нетронутый грунт в клетку, откуда мешок было physически не
+     * достать и не обойти — баг, из-за которого игрок оказывался заперт.
+     * Проверяется только клетка, В КОТОРУЮ мешок переходит (граница по X):
+     * пока мешок не пересек её, он остаётся в уже открытой клетке, где сам
+     * стоит, и терраин не проверяется.
      */
-    boolean push(GoldBag bag, Direction direction) {
+    boolean push(GoldBag bag, Direction direction, LevelField field) {
         if (!bag.canBePushed()) {
             return false;
         }
@@ -82,8 +92,16 @@ final class GoldBags {
         if (nextX < MIN_X || nextX > MAX_X) {
             return false;
         }
+        int currentCellX = (bag.getX() - LevelField.FIELD_LEFT) / LevelField.CELL_WIDTH;
+        int nextCellX = (nextX - LevelField.FIELD_LEFT) / LevelField.CELL_WIDTH;
+        if (nextCellX != currentCellX) {
+            int cellY = (bag.getY() - LevelField.FIELD_TOP) / LevelField.CELL_HEIGHT;
+            if (!field.isOpenAt(nextCellX, cellY)) {
+                return false;
+            }
+        }
         GoldBag blocking = collidingWith(nextX, bag.getY(), bag);
-        if (blocking != null && !push(blocking, direction)) {
+        if (blocking != null && !push(blocking, direction, field)) {
             return false;
         }
         bag.moveHorizontally(deltaX);
@@ -110,7 +128,7 @@ final class GoldBags {
      * {@code pushudbags}, которую в оригинале вызывают и {@code updatedigger},
      * и {@code Monster.handleMonsterAi}).
      */
-    Direction resolveMovement(int fromX, int fromY, Direction direction) {
+    Direction resolveMovement(int fromX, int fromY, Direction direction, LevelField field) {
         if (direction == Direction.NONE) {
             return direction;
         }
@@ -142,7 +160,7 @@ final class GoldBags {
             return direction;
         }
         boolean horizontal = direction == Direction.LEFT || direction == Direction.RIGHT;
-        if (horizontal && push(blocking, direction)) {
+        if (horizontal && push(blocking, direction, field)) {
             return direction;
         }
         return Direction.NONE;

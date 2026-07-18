@@ -18,6 +18,14 @@ package org.digger.android;
  * та же логика, что и у Digger'а (целый мешок толкается или блокирует
  * проход, расколотый подбирается). Столкновения с Digger'ом (смерть/бонусный
  * режим) сюда не входят.
+ *
+ * <p>Два нюанса оригинала, из-за отсутствия которых монстры в порте были
+ * заметно "умнее" и от них было не убежать (жалоба тестеров на хардкорность),
+ * перенесены отдельно: штраф в один кадр простоя после каждого поворота на
+ * перекрестке (см. {@link #update}, перенос {@code type++}/{@code type--} из
+ * {@code doMonsters()}/{@code handleMonsterAi()}) и случайная "тупость" на
+ * лёгких уровнях, из-за которой монстр иногда выбирает не кратчайший путь
+ * (см. {@link #chooseDirection}, перенос {@code randomNumber(level+5)==1 && level<6}).
  */
 final class Monster {
 
@@ -27,6 +35,10 @@ final class Monster {
     private static final int H_STEP = 4;
     private static final int V_STEP = 3;
     private static final int SPAWN_DELAY = 5;
+    private static final int MAX_DUMB_LEVEL = 6;
+    private static final int MAX_LEVEL = 10;
+
+    private static final java.util.Random RANDOM = new java.util.Random();
 
     private static final int MIN_X = LevelField.FIELD_LEFT;
     private static final int MAX_X = LevelField.FIELD_LEFT + (LevelField.WIDTH - 1) * LevelField.CELL_WIDTH;
@@ -42,6 +54,8 @@ final class Monster {
     private int frame;
     private Direction direction = Direction.LEFT;
     private int spawnTime = SPAWN_DELAY;
+    private boolean frozenAfterTurn;
+    private int level = 1;
 
     Monster() {
         this(LevelField.WIDTH - 1, 0);
@@ -57,13 +71,37 @@ final class Monster {
         y = LevelField.FIELD_TOP + cellY * LevelField.CELL_HEIGHT;
     }
 
+    /**
+     * Влияет только на случайную "тупость" на перекрестках (см.
+     * {@link #chooseDirection}) — сама скорость движения от уровня не
+     * зависит, как и в оригинале.
+     */
+    void setLevel(int level) {
+        this.level = Math.min(Math.max(level, 1), MAX_LEVEL);
+    }
+
     void update(LevelField field, GoldBags bags, int diggerX, int diggerY) {
         if (spawnTime > 0) {
             spawnTime--;
             return;
         }
+        // Штраф за поворот: сразу после смены направления на перекрестке
+        // монстр ровно один кадр стоит на месте, прежде чем продолжить
+        // движение — перенос mondat[mon].type++ (в handleMonsterAi, в момент
+        // поворота) и следующего кадра doMonsters(), где ненулевой type
+        // просто декрементируется вместо вызова handleMonsterAi(). Без этого
+        // монстр поворачивает мгновенно и от него невозможно оторваться в
+        // лабиринте.
+        if (frozenAfterTurn) {
+            frozenAfterTurn = false;
+            return;
+        }
         if (remainderX == 0 && remainderY == 0) {
-            direction = chooseDirection(field, diggerX, diggerY);
+            Direction chosen = chooseDirection(field, diggerX, diggerY);
+            if (chosen != direction) {
+                frozenAfterTurn = true;
+            }
+            direction = chosen;
         }
 
         // Защита от фолбэка "развернуться назад" в момент, когда монстр
@@ -84,7 +122,7 @@ final class Monster {
         // от игрока, а у монстра источник направления — он сам, поэтому
         // "что хочет ехать" (direction) и "получилось ли в этот кадр"
         // (attempt) обязаны быть разными переменными.
-        Direction attempt = bags.resolveMovement(x, y, direction);
+        Direction attempt = bags.resolveMovement(x, y, direction, field);
 
         switch (attempt) {
             case RIGHT:
@@ -140,6 +178,17 @@ final class Monster {
                 priorities[priorities.length - 1] = fallback;
                 break;
             }
+        }
+
+        // Случайная "тупость" на лёгких уровнях: изредка меняем местами 1-й
+        // и 3-й приоритет, из-за чего монстр иногда выбирает не кратчайший
+        // путь к Digger'у — перенос randomNumber(level+5)==1 && level<6.
+        // Вероятность 1/(level+5) — реже срабатывает на более высоких
+        // уровнях и вовсе не срабатывает начиная с 6-го.
+        if (level < MAX_DUMB_LEVEL && RANDOM.nextInt(level + 5) == 0) {
+            Direction swap = priorities[0];
+            priorities[0] = priorities[2];
+            priorities[2] = swap;
         }
 
         int cellX = (x - LevelField.FIELD_LEFT) / LevelField.CELL_WIDTH;
