@@ -11,6 +11,7 @@ public class LevelDataTest {
     public void everyPlanHasCorrectDimensions() {
         assertPlanDimensions(LevelData.PLAN_1);
         assertPlanDimensions(LevelData.PLAN_2);
+        assertPlanDimensions(LevelData.PLAN_3);
     }
 
     @Test
@@ -24,10 +25,16 @@ public class LevelDataTest {
     }
 
     @Test
+    public void thirdLevelUsesPlanThree() {
+        assertSame(LevelData.PLAN_3, LevelData.forLevel(3));
+    }
+
+    @Test
     public void levelsBeyondAvailablePlansCycleInsteadOfFailing() {
-        assertSame(LevelData.PLAN_1, LevelData.forLevel(3));
-        assertSame(LevelData.PLAN_2, LevelData.forLevel(4));
-        assertSame(LevelData.PLAN_1, LevelData.forLevel(5));
+        assertSame(LevelData.PLAN_1, LevelData.forLevel(4));
+        assertSame(LevelData.PLAN_2, LevelData.forLevel(5));
+        assertSame(LevelData.PLAN_3, LevelData.forLevel(6));
+        assertSame(LevelData.PLAN_1, LevelData.forLevel(7));
     }
 
     private static void assertPlanDimensions(String[] plan) {

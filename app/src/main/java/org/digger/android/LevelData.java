@@ -3,7 +3,7 @@ package org.digger.android;
 /**
  * Текстовые схемы планов уровней, перенесенные из {@code Main.levelData}.
  *
- * <p>Пока перенесены два плана из восьми оригинальных — остальные шесть
+ * <p>Пока перенесены три плана из восьми оригинальных — остальные пять
  * будут добавлены позже. До тех пор {@link #forLevel} просто циклически
  * повторяет уже перенесенные планы, а не встаёт в тупик после последнего —
  * тот же принцип, что и в оригинальном {@code Main.getLevelPlan()}, который
@@ -36,7 +36,19 @@ final class LevelData {
             "C    V CC V CC ",
             "CC   HHHHHH    "};
 
-    private static final String[][] PLANS = {PLAN_1, PLAN_2};
+    static final String[] PLAN_3 = {
+            "SHHHHB B BHHHHS",
+            "CC  V C C V BB ",
+            "C   V C C V CC ",
+            " BB V C C VCCCC",
+            "CCCCV C C VCCCC",
+            "CCCCHHHHHHH CC ",
+            " CC  C V C  CC ",
+            " CC  C V C     ",
+            "C    C V C    C",
+            "CC   C H C   CC"};
+
+    private static final String[][] PLANS = {PLAN_1, PLAN_2, PLAN_3};
 
     /**
      * Схема для заданного номера уровня (1-based) — прямое соответствие
