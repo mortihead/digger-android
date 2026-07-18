@@ -358,14 +358,35 @@ final class AndroidAudioDriver implements AudioDriver {
                 SquareWaveSynth.Segment.tone(1046, 80, 0.8f, 3, 15));
     }
 
+    /**
+     * Прямой перенос {@code newlevjingle} из оригинального {@code Sound.java}
+     * (11 нот: C5-E5-G5-D5-F5-A5-E5-G5-B5-C6-C6, каждая держится ровно
+     * {@code nljnoteduration}=20 тиков по 73Гц ≈274мс — в отличие от
+     * {@code dirge}/{@code backgjingle}, тут все ноты одной длины, без
+     * отдельного массива длительностей). Итого ~3с — раньше здесь была
+     * укороченная версия (6 нот, округлённые частоты) с обоснованием "короче
+     * ощущается уместнее"; заменено на точный перенос по просьбе — ужимать
+     * оригинал сюда действительно было не нужно, {@link #LEVEL_DONE_DISPLAY_FRAMES}
+     * и так даёт больше времени, чем требует полный джингл.
+     *
+     * <p>В оригинале {@code soundLevDone()} — БЛОКИРУЮЩИЙ (крутит собственный
+     * цикл с {@code Thread.sleep(14)}, пока не доиграет всю мелодию) — здесь
+     * это по-прежнему единственное сознательное отличие: джингл проигрывается
+     * асинхронно через {@code SoundPool}, не задерживая рендер-поток.
+     */
     private static short[] buildLevelComplete() {
         return SquareWaveSynth.render(
-                SquareWaveSynth.Segment.tone(523, 120, 0.8f, 5, 15),
-                SquareWaveSynth.Segment.tone(677, 120, 0.8f, 5, 15),
-                SquareWaveSynth.Segment.tone(801, 120, 0.8f, 5, 15),
-                SquareWaveSynth.Segment.tone(589, 120, 0.8f, 5, 15),
-                SquareWaveSynth.Segment.tone(881, 120, 0.8f, 5, 15),
-                SquareWaveSynth.Segment.tone(1046, 120, 0.8f, 5, 20));
+                SquareWaveSynth.Segment.tone(523.32, 274, 0.8f, 5, 15),
+                SquareWaveSynth.Segment.tone(659.22, 274, 0.8f, 5, 15),
+                SquareWaveSynth.Segment.tone(783.96, 274, 0.8f, 5, 15),
+                SquareWaveSynth.Segment.tone(587.19, 274, 0.8f, 5, 15),
+                SquareWaveSynth.Segment.tone(698.58, 274, 0.8f, 5, 15),
+                SquareWaveSynth.Segment.tone(879.93, 274, 0.8f, 5, 15),
+                SquareWaveSynth.Segment.tone(659.22, 274, 0.8f, 5, 15),
+                SquareWaveSynth.Segment.tone(783.96, 274, 0.8f, 5, 15),
+                SquareWaveSynth.Segment.tone(987.73, 274, 0.8f, 5, 15),
+                SquareWaveSynth.Segment.tone(1046.65, 274, 0.8f, 5, 15),
+                SquareWaveSynth.Segment.tone(1046.65, 274, 0.8f, 10, 100));
     }
 
     /**
