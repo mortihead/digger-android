@@ -73,6 +73,7 @@ final class TitleScreen {
 
         screen.clear();
         screen.drawTitleScreen(CgaAssets.CGA_TITLE_DATA);
+        eraseOriginalCredit(screen);
         screen.drawText("D I G G E R", 100, 0, 3);
         screen.drawText("ONE", 220, 25, 3);
         screen.drawText(" PLAYER ", 192, 39, 3);
@@ -85,6 +86,22 @@ final class TitleScreen {
         drawBonus(screen, cycleFrame);
 
         tick++;
+    }
+
+    /**
+     * {@code CgaAssets.CGA_TITLE_DATA} — это дамп кадра оригинального
+     * титульного экрана, и в его нижней строке (x=14..311, y=185..199 на
+     * холсте 320x200) вшита копирайт-плашка "© Windmill Software 1983" самой
+     * оригинальной игры. Мы не хотим показывать в своём порте чужой копирайт
+     * как свой — затираем эту полосу и пишем поверх собственную подпись.
+     */
+    private static void eraseOriginalCredit(CgaScreen screen) {
+        for (int y = 184; y < CgaScreen.HEIGHT; y++) {
+            for (int x = 0; x < CgaScreen.WIDTH; x++) {
+                screen.setPixel(x, y, 0);
+            }
+        }
+        screen.drawText("DIGGER REBORN 1983", 52, 187, 3);
     }
 
     private void clearReveals() {
