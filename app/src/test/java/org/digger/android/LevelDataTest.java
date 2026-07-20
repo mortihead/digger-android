@@ -12,29 +12,37 @@ public class LevelDataTest {
         assertPlanDimensions(LevelData.PLAN_1);
         assertPlanDimensions(LevelData.PLAN_2);
         assertPlanDimensions(LevelData.PLAN_3);
+        assertPlanDimensions(LevelData.PLAN_4);
+        assertPlanDimensions(LevelData.PLAN_5);
+        assertPlanDimensions(LevelData.PLAN_6);
+        assertPlanDimensions(LevelData.PLAN_7);
+        assertPlanDimensions(LevelData.PLAN_8);
     }
 
     @Test
-    public void firstLevelUsesPlanOne() {
+    public void levelsOneToEightUseTheirOwnNumberedPlan() {
         assertSame(LevelData.PLAN_1, LevelData.forLevel(1));
-    }
-
-    @Test
-    public void secondLevelUsesPlanTwo() {
         assertSame(LevelData.PLAN_2, LevelData.forLevel(2));
-    }
-
-    @Test
-    public void thirdLevelUsesPlanThree() {
         assertSame(LevelData.PLAN_3, LevelData.forLevel(3));
+        assertSame(LevelData.PLAN_4, LevelData.forLevel(4));
+        assertSame(LevelData.PLAN_5, LevelData.forLevel(5));
+        assertSame(LevelData.PLAN_6, LevelData.forLevel(6));
+        assertSame(LevelData.PLAN_7, LevelData.forLevel(7));
+        assertSame(LevelData.PLAN_8, LevelData.forLevel(8));
     }
 
     @Test
-    public void levelsBeyondAvailablePlansCycleInsteadOfFailing() {
-        assertSame(LevelData.PLAN_1, LevelData.forLevel(4));
-        assertSame(LevelData.PLAN_2, LevelData.forLevel(5));
-        assertSame(LevelData.PLAN_3, LevelData.forLevel(6));
-        assertSame(LevelData.PLAN_1, LevelData.forLevel(7));
+    public void levelsBeyondEightCyclePlansSixSevenEightFive() {
+        // Перенос Main.getLevelPlan(): (level & 3) + 5 — план 5 играет один
+        // раз на уровне 5, а дальше в цикле уже не повторяется.
+        assertSame(LevelData.PLAN_6, LevelData.forLevel(9));
+        assertSame(LevelData.PLAN_7, LevelData.forLevel(10));
+        assertSame(LevelData.PLAN_8, LevelData.forLevel(11));
+        assertSame(LevelData.PLAN_5, LevelData.forLevel(12));
+        assertSame(LevelData.PLAN_6, LevelData.forLevel(13));
+        assertSame(LevelData.PLAN_7, LevelData.forLevel(14));
+        assertSame(LevelData.PLAN_8, LevelData.forLevel(15));
+        assertSame(LevelData.PLAN_5, LevelData.forLevel(16));
     }
 
     private static void assertPlanDimensions(String[] plan) {

@@ -2,13 +2,6 @@ package org.digger.android;
 
 /**
  * Текстовые схемы планов уровней, перенесенные из {@code Main.levelData}.
- *
- * <p>Пока перенесены три плана из восьми оригинальных — остальные пять
- * будут добавлены позже. До тех пор {@link #forLevel} просто циклически
- * повторяет уже перенесенные планы, а не встаёт в тупик после последнего —
- * тот же принцип, что и в оригинальном {@code Main.getLevelPlan()}, который
- * после 8 уровня тоже не останавливается, а зацикливает planы 5-8 (see
- * {@code getLevelPlan()}: {@code "Level plan: 12345678, 678, (5678) 247 times, 5 forever"}).
  */
 final class LevelData {
 
@@ -48,15 +41,78 @@ final class LevelData {
             "C    C V C    C",
             "CC   C H C   CC"};
 
-    private static final String[][] PLANS = {PLAN_1, PLAN_2, PLAN_3};
+    static final String[] PLAN_4 = {
+            "SHBCCCCBCCCCBHS",
+            "CV  CCCCCCC  VC",
+            "CHHH CCCCC HHHC",
+            "C  V  CCC  V  C",
+            "   HHH C HHH   ",
+            "  B  V B V  B  ",
+            "  C  VCCCV  C  ",
+            " CCC HHHHH CCC ",
+            "CCCCC CVC CCCCC",
+            "CCCCC CHC CCCCC"};
+
+    static final String[] PLAN_5 = {
+            "SHHHHHHHHHHHHHS",
+            "VBCCCCBVCCCCCCV",
+            "VCCCCCCV CCBC V",
+            "V CCCC VCCBCCCV",
+            "VCCCCCCV CCCC V",
+            "V CCCC VBCCCCCV",
+            "VCCBCCCV CCCC V",
+            "V CCBC VCCCCCCV",
+            "VCCCCCCVCCCCCCV",
+            "HHHHHHHHHHHHHHH"};
+
+    static final String[] PLAN_6 = {
+            "SHHHHHHHHHHHHHS",
+            "VCBCCV V VCCBCV",
+            "VCCC VBVBV CCCV",
+            "VCCCHH V HHCCCV",
+            "VCC V CVC V CCV",
+            "VCCHH CVC HHCCV",
+            "VC V CCVCC V CV",
+            "VCHHBCCVCCBHHCV",
+            "VCVCCCCVCCCCVCV",
+            "HHHHHHHHHHHHHHH"};
+
+    static final String[] PLAN_7 = {
+            "SHCCCCCVCCCCCHS",
+            " VCBCBCVCBCBCV ",
+            "BVCCCCCVCCCCCVB",
+            "CHHCCCCVCCCCHHC",
+            "CCV CCCVCCC VCC",
+            "CCHHHCCVCCHHHCC",
+            "CCCCV CVC VCCCC",
+            "CCCCHH V HHCCCC",
+            "CCCCCV V VCCCCC",
+            "CCCCCHHHHHCCCCC"};
+
+    static final String[] PLAN_8 = {
+            "HHHHHHHHHHHHHHS",
+            "V CCBCCCCCBCC V",
+            "HHHCCCCBCCCCHHH",
+            "VBV CCCCCCC VBV",
+            "VCHHHCCCCCHHHCV",
+            "VCCBV CCC VBCCV",
+            "VCCCHHHCHHHCCCV",
+            "VCCCC V V CCCCV",
+            "VCCCCCV VCCCCCV",
+            "HHHHHHHHHHHHHHH"};
+
+    private static final String[][] PLANS = {
+            PLAN_1, PLAN_2, PLAN_3, PLAN_4, PLAN_5, PLAN_6, PLAN_7, PLAN_8};
 
     /**
-     * Схема для заданного номера уровня (1-based) — прямое соответствие
-     * {@code getLevelPlan()} оригинала, пока не перенесены все 8 планов:
-     * циклический повтор уже перенесенных планов вместо тупика.
+     * Схема для заданного номера уровня (1-based) — перенос {@code Main.getLevelPlan()}:
+     * уровни 1-8 используют одноименные планы, а дальше зацикливаются на
+     * планах 6-7-8-5 ({@code (level & 3) + 5}, битовое И на самом номере
+     * уровня — план 5 больше не повторяется после первого раза).
      */
     static String[] forLevel(int level) {
-        int index = Math.max(level - 1, 0) % PLANS.length;
+        int planNumber = level > 8 ? (level & 3) + 5 : level;
+        int index = Math.max(planNumber - 1, 0);
         return PLANS[index];
     }
 
