@@ -595,7 +595,10 @@ public class GameView extends SurfaceView implements SurfaceHolder.Callback, Run
         if (session.isGameOver()) {
             screen.drawText("GAME OVER", 100, 0, 1);
         } else if (session.isLevelComplete()) {
-            screen.drawText("LEVEL DONE", 96, 0, 3);
+            // x=96 наезжал на иконки запасных жизней в HUD при 3+ жизнях
+            // (иконки занимают x=64..140 при максимуме в 4 иконки) — сдвинуто
+            // правее, чтобы не пересекаться ни при каком количестве жизней.
+            screen.drawText("LEVEL DONE", 144, 0, 3);
         } else if (paused) {
             screen.drawText("PAUSED", 124, 0, 1);
         }
