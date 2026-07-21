@@ -8,13 +8,15 @@ import org.junit.Test;
 
 public class GoldBagsTest {
 
+    private static final int FAR_AWAY = -1000;
+
     @Test
     public void pushMovesBagOneStepInDirection() {
         GoldBags bags = layoutWithBagsAt(5);
         GoldBag bag = bags.collidingWith(LevelField.FIELD_LEFT + 5 * LevelField.CELL_WIDTH, LevelField.FIELD_TOP);
         int startX = bag.getX();
 
-        boolean pushed = bags.push(bag, Direction.RIGHT, openField());
+        boolean pushed = bags.push(bag, Direction.RIGHT, openField(), FAR_AWAY, FAR_AWAY);
 
         assertTrue("Толкание ничем не заблокированного мешка должно удаваться.", pushed);
         assertEquals("Мешок должен сдвинуться ровно на один шаг.", startX + 4, bag.getX());
@@ -32,11 +34,12 @@ public class GoldBagsTest {
         int secondStartX = second.getX();
         LevelField field = openField();
 
-        assertTrue("Первый толчок выбирает зазор между мешками.", bags.push(first, Direction.RIGHT, field));
+        assertTrue("Первый толчок выбирает зазор между мешками.",
+                bags.push(first, Direction.RIGHT, field, FAR_AWAY, FAR_AWAY));
         assertEquals("Второй мешок пока не должен сдвинуться.", secondStartX, second.getX());
 
         assertTrue("Второй толчок должен передаться по цепочке на второй мешок.",
-                bags.push(first, Direction.RIGHT, field));
+                bags.push(first, Direction.RIGHT, field, FAR_AWAY, FAR_AWAY));
         assertTrue("Второй мешок должен сдвинуться цепочкой.", second.getX() > secondStartX);
     }
 
@@ -47,7 +50,7 @@ public class GoldBagsTest {
         GoldBag bag = bags.collidingWith(LevelField.FIELD_LEFT + lastColumn * LevelField.CELL_WIDTH, LevelField.FIELD_TOP);
         int startX = bag.getX();
 
-        boolean pushed = bags.push(bag, Direction.RIGHT, openField());
+        boolean pushed = bags.push(bag, Direction.RIGHT, openField(), FAR_AWAY, FAR_AWAY);
 
         assertFalse("Толкание мешка у края поля должно проваливаться.", pushed);
         assertEquals("Мешок не должен сдвинуться, если толкание не удалось.", startX, bag.getX());
@@ -66,11 +69,11 @@ public class GoldBagsTest {
         LevelField untouchedField = new LevelField(fullLayout(' '));
         for (int i = 0; i < 4; i++) {
             assertTrue("Толкание внутри уже занятой мешком клетки должно удаваться.",
-                    bags.push(bag, Direction.RIGHT, untouchedField));
+                    bags.push(bag, Direction.RIGHT, untouchedField, FAR_AWAY, FAR_AWAY));
         }
         int xBeforeBoundary = bag.getX();
 
-        boolean crossedIntoUndugCell = bags.push(bag, Direction.RIGHT, untouchedField);
+        boolean crossedIntoUndugCell = bags.push(bag, Direction.RIGHT, untouchedField, FAR_AWAY, FAR_AWAY);
 
         assertFalse("Толкание мешка в непрокопанный грунт соседней клетки должно проваливаться.",
                 crossedIntoUndugCell);
@@ -91,8 +94,27 @@ public class GoldBagsTest {
 
         assertTrue("Мешок должен начать раскачиваться, когда под ним открыт проход.", bag.isWobbling());
         assertTrue("Раскачивающийся мешок все еще должен толкаться, как обычный.",
-                bags.push(bag, Direction.RIGHT, openField()));
+                bags.push(bag, Direction.RIGHT, openField(), FAR_AWAY, FAR_AWAY));
         assertEquals("Толчок должен сдвинуть мешок ровно на один шаг.", startX + 4, bag.getX());
+    }
+
+    @Test
+    public void pushFailsIntoDiggerAndLeavesBagInPlace() {
+        // Регрессия: монстр мог протолкнуть мешок прямо на Digger'а и
+        // прижать его к краю поля/тупику — Digger физически не мог
+        // сдвинуться с места. В оригинале толкание в клетку с Digger'ом
+        // тоже откатывается (clbits & 1 — см. javadoc GoldBags#push).
+        GoldBags bags = layoutWithBagsAt(5);
+        GoldBag bag = bags.collidingWith(LevelField.FIELD_LEFT + 5 * LevelField.CELL_WIDTH, LevelField.FIELD_TOP);
+        int startX = bag.getX();
+        // Digger стоит ровно там, куда должен сдвинуться мешок после толчка.
+        int diggerX = bag.getX() + 4;
+        int diggerY = bag.getY();
+
+        boolean pushed = bags.push(bag, Direction.RIGHT, openField(), diggerX, diggerY);
+
+        assertFalse("Толкание мешка на Digger'а должно проваливаться.", pushed);
+        assertEquals("Мешок не должен сдвинуться, если толкание не удалось.", startX, bag.getX());
     }
 
     private static LevelField openField() {

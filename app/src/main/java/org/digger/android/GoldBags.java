@@ -70,20 +70,25 @@ final class GoldBags {
     /**
      * Пытается толкнуть мешок на один шаг в направлении {@code direction}.
      * Мешок, стоящий на пути, толкается первым (цепная реакция); если хоть
-     * одно звено цепочки уперлось в край поля, в непрокопанный грунт или в
-     * нераскачивающийся/непадающий мешок — толкание не удаётся, и ни один
-     * мешок не двигается.
+     * одно звено цепочки уперлось в край поля, в непрокопанный грунт, в
+     * Digger'а, в монстра или в нераскачивающийся/непадающий мешок —
+     * толкание не удаётся, и ни один мешок не двигается.
      *
-     * <p>Проверка грунта — перенос отката толкания в оригинале при попадании
-     * {@code clbits} (толкаемый мешок не должен въезжать в клетку, которую
-     * никто еще не копал). Без неё Digger или монстр мог протолкнуть мешок
-     * сквозь нетронутый грунт в клетку, откуда мешок было physически не
-     * достать и не обойти — баг, из-за которого игрок оказывался заперт.
+     * <p>Проверка грунта — самостоятельная защита порта (в оригинале ее нет):
+     * без нее Digger или монстр мог протолкнуть мешок сквозь нетронутый
+     * грунт в клетку, откуда мешок было физически не достать и не обойти.
      * Проверяется только клетка, В КОТОРУЮ мешок переходит (граница по X):
      * пока мешок не пересек её, он остаётся в уже открытой клетке, где сам
      * стоит, и терраин не проверяется.
+     *
+     * <p>Проверка коллизии с Digger'ом — перенос отката толкания в оригинале
+     * при {@code clbits & 1} (спрайт 0 в движке оригинала — это одновременно
+     * и Digger, и неиспользуемый мешок-заглушка с тем же индексом, см.
+     * {@code SpriteEngine}: "0 is also the digger"). Без этой проверки
+     * монстр мог протолкнуть мешок прямо на Digger'а и прижать его к краю
+     * поля/тупику — Digger не мог сдвинуться и оказывался заперт.
      */
-    boolean push(GoldBag bag, Direction direction, LevelField field) {
+    boolean push(GoldBag bag, Direction direction, LevelField field, int diggerX, int diggerY) {
         if (!bag.canBePushed()) {
             return false;
         }
@@ -100,12 +105,20 @@ final class GoldBags {
                 return false;
             }
         }
+        if (overlapsEntity(nextX, bag.getY(), diggerX, diggerY)) {
+            return false;
+        }
         GoldBag blocking = collidingWith(nextX, bag.getY(), bag);
-        if (blocking != null && !push(blocking, direction, field)) {
+        if (blocking != null && !push(blocking, direction, field, diggerX, diggerY)) {
             return false;
         }
         bag.moveHorizontally(deltaX);
         return true;
+    }
+
+    private static boolean overlapsEntity(int bagX, int bagY, int entityX, int entityY) {
+        return bagX < entityX + GoldBag.WIDTH && bagX + GoldBag.WIDTH > entityX
+                && bagY < entityY + GoldBag.HEIGHT && bagY + GoldBag.HEIGHT > entityY;
     }
 
     int collectedCount() {
@@ -127,8 +140,14 @@ final class GoldBags {
      * с мешками одинаково (перенос общей части {@code Bags.pushbag} и
      * {@code pushudbags}, которую в оригинале вызывают и {@code updatedigger},
      * и {@code Monster.handleMonsterAi}).
+     *
+     * <p>{@code diggerX}/{@code diggerY} нужны толканию, чтобы не пропустить
+     * мешок сквозь Digger'а — см. {@link #push}. Когда толкает сам Digger,
+     * это его же координаты: мешок и так не может дотолкаться до клетки,
+     * где стоит сам толкающий, так что проверка там просто не срабатывает.
      */
-    Direction resolveMovement(int fromX, int fromY, Direction direction, LevelField field) {
+    Direction resolveMovement(int fromX, int fromY, Direction direction, LevelField field,
+            int diggerX, int diggerY) {
         if (direction == Direction.NONE) {
             return direction;
         }
@@ -160,7 +179,7 @@ final class GoldBags {
             return direction;
         }
         boolean horizontal = direction == Direction.LEFT || direction == Direction.RIGHT;
-        if (horizontal && push(blocking, direction, field)) {
+        if (horizontal && push(blocking, direction, field, diggerX, diggerY)) {
             return direction;
         }
         return Direction.NONE;

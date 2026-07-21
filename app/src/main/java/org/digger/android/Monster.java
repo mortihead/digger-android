@@ -122,7 +122,7 @@ final class Monster {
         // от игрока, а у монстра источник направления — он сам, поэтому
         // "что хочет ехать" (direction) и "получилось ли в этот кадр"
         // (attempt) обязаны быть разными переменными.
-        Direction attempt = bags.resolveMovement(x, y, direction, field);
+        Direction attempt = bags.resolveMovement(x, y, direction, field, diggerX, diggerY);
 
         switch (attempt) {
             case RIGHT:
