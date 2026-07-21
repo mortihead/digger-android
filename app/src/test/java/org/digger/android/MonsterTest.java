@@ -30,6 +30,12 @@ public class MonsterTest {
     public void movesTowardDiggerOnceSpawned() {
         LevelField field = new LevelField(fullyOpenLayout());
         Monster monster = new Monster();
+        // Отключает случайную "тупость" на лёгких уровнях (level<6, см.
+        // Monster#chooseDirection) — иначе тест был бы время от времени
+        // случайно "плавающим" из-за общего статического RANDOM монстров:
+        // редкий свап приоритетов на 15 кадрах открытого поля может увести
+        // монстра в сторону настолько, что X не успевает уменьшиться.
+        monster.setLevel(10);
         int startX = monster.getX();
         // Digger далеко слева на той же высоте — монстр должен поехать влево, к нему.
         int diggerX = LevelField.FIELD_LEFT;
@@ -146,6 +152,37 @@ public class MonsterTest {
 
         assertTrue("После снятия препятствия монстр должен продолжить движение, а не остаться замороженным.",
                 monster.getX() > blockedX);
+    }
+
+    @Test
+    public void doesNotFreezeWhenBagIsPinnedAgainstDigger() {
+        // Регрессия: если мешок прижат к Digger'у (и поэтому непроталкиваем —
+        // см. GoldBagsTest#pushFailsIntoDiggerAndLeavesBagInPlace), монстр
+        // раньше все равно выбирал направление "толкнуть мешок к Digger'у" на
+        // каждом кадре (chooseDirection не знала про непроходимость мешка) и
+        // визуально замирал на месте. Теперь такое направление должно сразу
+        // отсеиваться в пользу альтернативного — монстр должен отъехать.
+        LevelField field = new LevelField(fullLayout('S'));
+        GoldBags bags = new GoldBags(fullLayout('S'));
+        int bagColumn = 5;
+        GoldBag bag = new GoldBag(bagColumn, 3);
+        bags.add(bag);
+        Monster monster = new Monster(bagColumn - 1, 3);
+        monster.setLevel(10); // без случайной "тупости" — см. movesTowardDiggerOnceSpawned
+        // Digger стоит вплотную к мешку с другой стороны — один толчок вправо
+        // уже упирается в него, толкать дальше некуда.
+        int diggerX = bag.getX() + 4;
+        int diggerY = bag.getY();
+        int startX = monster.getX();
+        int startY = monster.getY();
+
+        boolean moved = false;
+        for (int i = 0; i < 40 && !moved; i++) {
+            monster.update(field, bags, diggerX, diggerY);
+            moved = monster.getX() != startX || monster.getY() != startY;
+        }
+
+        assertTrue("Монстр должен отъехать от непроталкиваемого мешка, а не замереть на месте.", moved);
     }
 
     private static String[] fullyOpenLayout() {

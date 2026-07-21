@@ -97,7 +97,7 @@ final class Monster {
             return;
         }
         if (remainderX == 0 && remainderY == 0) {
-            Direction chosen = chooseDirection(field, diggerX, diggerY);
+            Direction chosen = chooseDirection(field, bags, diggerX, diggerY);
             if (chosen != direction) {
                 frozenAfterTurn = true;
             }
@@ -148,7 +148,7 @@ final class Monster {
         remainderY = (y - LevelField.FIELD_TOP) % LevelField.CELL_HEIGHT;
     }
 
-    private Direction chooseDirection(LevelField field, int diggerX, int diggerY) {
+    private Direction chooseDirection(LevelField field, GoldBags bags, int diggerX, int diggerY) {
         Direction fallback = opposite(direction);
 
         Direction p1;
@@ -194,7 +194,13 @@ final class Monster {
         int cellX = (x - LevelField.FIELD_LEFT) / LevelField.CELL_WIDTH;
         int cellY = (y - LevelField.FIELD_TOP) / LevelField.CELL_HEIGHT;
         for (Direction candidate : priorities) {
-            if (field.isPassable(cellX, cellY, candidate) && isDestinationOpen(field, cellX, cellY, candidate)) {
+            // bags.canMove(...) отсеивает направление, где путь загорожен
+            // мешком, который прямо сейчас никуда не толкается (например,
+            // прижат к Digger'у у края поля) — без этой проверки монстр
+            // раз за разом выбирал бы то же самое направление и застревал
+            // в вечной попытке толкнуть мешок, который не сдвинется.
+            if (field.isPassable(cellX, cellY, candidate) && isDestinationOpen(field, cellX, cellY, candidate)
+                    && bags.canMove(x, y, candidate, field, diggerX, diggerY)) {
                 return candidate;
             }
         }

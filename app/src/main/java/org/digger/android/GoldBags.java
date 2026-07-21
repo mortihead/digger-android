@@ -89,6 +89,24 @@ final class GoldBags {
      * поля/тупику — Digger не мог сдвинуться и оказывался заперт.
      */
     boolean push(GoldBag bag, Direction direction, LevelField field, int diggerX, int diggerY) {
+        return push(bag, direction, field, diggerX, diggerY, true);
+    }
+
+    /**
+     * То же самое, что {@link #push}, но не двигает мешки по-настоящему —
+     * только проверяет, получилось бы. Нужно монстру при выборе направления
+     * (см. {@link Monster#chooseDirection}), чтобы не выбирать раз за разом
+     * направление, толкание в котором заведомо провалится (например, мешок
+     * прижат к Digger'у и дальше не сдвинется) — иначе монстр "замерзает",
+     * бесконечно повторяя один и тот же безуспешный толчок, вместо того
+     * чтобы попробовать другой путь.
+     */
+    boolean canPush(GoldBag bag, Direction direction, LevelField field, int diggerX, int diggerY) {
+        return push(bag, direction, field, diggerX, diggerY, false);
+    }
+
+    private boolean push(GoldBag bag, Direction direction, LevelField field, int diggerX, int diggerY,
+            boolean commit) {
         if (!bag.canBePushed()) {
             return false;
         }
@@ -109,10 +127,12 @@ final class GoldBags {
             return false;
         }
         GoldBag blocking = collidingWith(nextX, bag.getY(), bag);
-        if (blocking != null && !push(blocking, direction, field, diggerX, diggerY)) {
+        if (blocking != null && !push(blocking, direction, field, diggerX, diggerY, commit)) {
             return false;
         }
-        bag.moveHorizontally(deltaX);
+        if (commit) {
+            bag.moveHorizontally(deltaX);
+        }
         return true;
     }
 
@@ -151,24 +171,8 @@ final class GoldBags {
         if (direction == Direction.NONE) {
             return direction;
         }
-        int nextX = fromX;
-        int nextY = fromY;
-        switch (direction) {
-            case RIGHT:
-                nextX += PUSH_STEP;
-                break;
-            case LEFT:
-                nextX -= PUSH_STEP;
-                break;
-            case UP:
-                nextY -= 3;
-                break;
-            case DOWN:
-                nextY += 3;
-                break;
-            default:
-                break;
-        }
+        int nextX = nextX(fromX, direction);
+        int nextY = nextY(fromY, direction);
 
         GoldBag blocking = collidingWith(nextX, nextY);
         if (blocking == null) {
@@ -183,5 +187,46 @@ final class GoldBags {
             return direction;
         }
         return Direction.NONE;
+    }
+
+    /**
+     * Без побочных эффектов проверяет то же самое, что решает
+     * {@link #resolveMovement} — получится ли шаг, включая толкание мешка,
+     * если он на пути. См. {@link #canPush} — именно ради него и заведена
+     * эта версия.
+     */
+    boolean canMove(int fromX, int fromY, Direction direction, LevelField field, int diggerX, int diggerY) {
+        if (direction == Direction.NONE) {
+            return false;
+        }
+        int nextX = nextX(fromX, direction);
+        int nextY = nextY(fromY, direction);
+
+        GoldBag blocking = collidingWith(nextX, nextY);
+        if (blocking == null || blocking.isBroken()) {
+            return true;
+        }
+        boolean horizontal = direction == Direction.LEFT || direction == Direction.RIGHT;
+        return horizontal && canPush(blocking, direction, field, diggerX, diggerY);
+    }
+
+    private static int nextX(int x, Direction direction) {
+        if (direction == Direction.RIGHT) {
+            return x + PUSH_STEP;
+        }
+        if (direction == Direction.LEFT) {
+            return x - PUSH_STEP;
+        }
+        return x;
+    }
+
+    private static int nextY(int y, Direction direction) {
+        if (direction == Direction.DOWN) {
+            return y + 3;
+        }
+        if (direction == Direction.UP) {
+            return y - 3;
+        }
+        return y;
     }
 }
